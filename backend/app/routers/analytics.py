@@ -45,16 +45,22 @@ def _data_quality_pct(row: TuReportRow) -> float:
     return round(_cap_pct(pct), 1)
 
 
+MIN_MEANINGFUL_VOLUME = 0.05  # м³ — ниже этого порога объём считается шумом измерения, не нарушением
+
+
 def _probable_cause(
     below_40: float, v40_60: float, above_75: float,
     hours_violation_low: int, hours_violation_high: int, hours_total: int,
     is_dead_end: Optional[str], data_quality_pct: float,
+    volume_total: float = None,
 ) -> str:
     """Эвристика (rule-based) для определения вероятной причины нарушения по объёмам/часам.
     При появлении данных приборов (почасовые ряды) можно заменить/дополнить ML-моделью."""
     violation = below_40 + v40_60 + above_75
     if violation <= 0:
         return "Норма"
+    if volume_total is not None and volume_total < MIN_MEANINGFUL_VOLUME:
+        return "Недостаточно объёма для оценки"
     if data_quality_pct < 52:
         return "Недостаточно данных для определения причины"
 
@@ -71,8 +77,9 @@ def _probable_cause(
     if dominant != "above_75" and str(is_dead_end or "").strip().lower() == "да":
         cause += " (тупиковая ветка — возможен дефицит циркуляции)"
 
-    if hours_total and (hours_violation_low + hours_violation_high) / hours_total > 0.5:
-        cause += "; нарушение хроническое (>50% часов периода)"
+    violation_hours = hours_violation_low + hours_violation_high
+    if hours_total and violation_hours / hours_total > 0.5:
+        cause += f"; нарушение хроническое ({violation_hours} ч. из {hours_total} ч. периода)"
 
     return cause
 
@@ -81,12 +88,15 @@ def _to_out(row: TuReportRow) -> TuRowOut:
     out = TuRowOut.model_validate(row)
     violation = _violation_volume(row)
     out.violation_volume = round(violation, 3)
-    out.violation_pct = round(_cap_pct(violation / row.volume_total * 100), 2) if row.volume_total else 0.0
+    out.violation_pct = (
+        round(_cap_pct(violation / row.volume_total * 100), 2)
+        if row.volume_total and row.volume_total >= MIN_MEANINGFUL_VOLUME else 0.0
+    )
     out.data_quality_pct = _data_quality_pct(row)
     out.probable_cause = _probable_cause(
         row.volume_below_40 or 0, row.volume_40_60 or 0, row.volume_above_75 or 0,
         row.hours_violation_low or 0, row.hours_violation_high or 0, row.hours_total or 0,
-        row.is_dead_end, out.data_quality_pct,
+        row.is_dead_end, out.data_quality_pct, row.volume_total or 0,
     )
     return out
 
@@ -282,14 +292,17 @@ def get_object_comparison(
                 period_id=p.id,
                 volume_total=round(vt, 2),
                 violation_volume=round(agg["violation_volume"], 2),
-                violation_pct=round(_cap_pct(agg["violation_volume"] / vt * 100), 2) if vt else 0.0,
+                violation_pct=(
+                    round(_cap_pct(agg["violation_volume"] / vt * 100), 2)
+                    if vt >= MIN_MEANINGFUL_VOLUME else 0.0
+                ),
                 avg_temp_gvs=round(agg["temp_weighted"] / vt, 2) if vt else 0.0,
                 data_quality_pct=data_quality_pct,
                 has_overheat=agg["above_75"] > 0,
                 probable_cause=_probable_cause(
                     agg["below_40"], agg["v40_60"], agg["above_75"],
                     agg["hours_violation_low"], agg["hours_violation_high"], agg["hours_total"],
-                    agg["is_dead_end"], data_quality_pct,
+                    agg["is_dead_end"], data_quality_pct, vt,
                 ),
             )
 
