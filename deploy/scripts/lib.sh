@@ -47,6 +47,11 @@ create_app_user() {
   id -u "$APP_USER" &>/dev/null || useradd -r -m -d "$APP_DIR" -s /usr/sbin/nologin "$APP_USER"
   mkdir -p "$APP_DIR/data"
   chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+  # useradd -m may create the home dir with mode 750, which blocks nginx
+  # (running as www-data) from traversing down to frontend/dist. Only the
+  # top-level dir needs +x for others to traverse; subdirs created by git
+  # clone use the default umask and are already world-readable/traversable.
+  chmod o+rx "$APP_DIR"
 }
 
 fetch_code() {
