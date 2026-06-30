@@ -17,15 +17,19 @@ def _apply_filters(q, object_type, is_dead_end, system_type, source_name, object
     if object_type:
         q = q.filter(TuReportRow.object_type == object_type)
     if is_dead_end:
-        q = q.filter(TuReportRow.is_dead_end.ilike(is_dead_end))
+        q = q.filter(TuReportRow.is_dead_end == is_dead_end.strip().lower())
     if system_type:
         q = q.filter(TuReportRow.system_type == system_type)
     if source_name:
         q = q.filter(TuReportRow.source_name == source_name)
-    if object_search:
-        like = f"%{object_search}%"
-        q = q.filter(TuReportRow.object_name.ilike(like))
     return q
+
+
+def _filter_by_search(rows, object_search):
+    if not object_search:
+        return rows
+    needle = object_search.strip().lower()
+    return [r for r in rows if r.object_name and needle in r.object_name.lower()]
 
 
 def _violation_volume(row: TuReportRow) -> float:
@@ -67,8 +71,9 @@ def list_tu_rows(
     db: Session = Depends(get_db),
 ):
     q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
-    q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, search)
-    rows = [_to_out(r) for r in q.all()]
+    q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
+    db_rows = _filter_by_search(q.all(), search)
+    rows = [_to_out(r) for r in db_rows]
 
     if min_violation_pct is not None:
         rows = [r for r in rows if r.violation_pct >= min_violation_pct]
@@ -194,8 +199,8 @@ def get_object_comparison(
 
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, search)
-        rows = q.all()
+        q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
+        rows = _filter_by_search(q.all(), search)
         if min_data_quality_pct is not None:
             rows = [r for r in rows if _data_quality_pct(r) >= min_data_quality_pct]
         if max_data_quality_pct is not None:

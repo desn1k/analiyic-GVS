@@ -89,10 +89,10 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
             ))}
           </tbody>
         </table>
-        <p className="footnote">
-          Строки с подсветкой: достоверных данных менее 52% от общего числа архивных записей за период.
-        </p>
       </div>
+      <p className="footnote">
+        Строки с подсветкой: достоверных данных менее 52% от общего числа архивных записей за период.
+      </p>
     </div>
   );
 }

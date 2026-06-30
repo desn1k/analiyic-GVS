@@ -6,6 +6,26 @@ from app.services.report_parser import extract_city, parse_report
 ANALYZED_CITY = "Саратов"
 
 
+def _normalize_yes_no(v):
+    if not v:
+        return None
+    s = str(v).strip().lower()
+    if s in ("да", "нет"):
+        return s
+    return None
+
+
+def _normalize_system_type(v):
+    if not v:
+        return None
+    s = str(v).strip().lower()
+    if s == "открытая":
+        return "Открытая"
+    if s == "закрытая":
+        return "Закрытая"
+    return str(v).strip()
+
+
 def ingest_report(db: Session, file, filename: str) -> ReportPeriod:
     period_start, period_end, generated_at, rows = parse_report(file)
     rows = [r for r in rows if extract_city(r["object_name"]) == ANALYZED_CITY]
@@ -38,8 +58,8 @@ def ingest_report(db: Session, file, filename: str) -> ReportPeriod:
             tu_id=r["tu_id"],
             source_name=r["source_name"],
             avg_temp_ctp=r["avg_temp_ctp"],
-            is_dead_end=r["is_dead_end"],
-            system_type=r["system_type"],
+            is_dead_end=_normalize_yes_no(r["is_dead_end"]),
+            system_type=_normalize_system_type(r["system_type"]),
             total_records=r["total_records"],
             valid_records=r["valid_records"],
             avg_temp_gvs=r["avg_temp_gvs"],
