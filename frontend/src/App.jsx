@@ -119,7 +119,9 @@ export default function App() {
             </button>
           </div>
         )}
-        <ObjectComparisonTable data={objectComparison} />
+        {!showComparisonFilters && (
+          <p className="empty-hint">Раскройте фильтры (+) и нажмите «Анализ», чтобы открыть сравнение объектов по неделям в новой вкладке.</p>
+        )}
       </section>
 
       <section className="card">
