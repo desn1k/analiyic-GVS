@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: "http://127.0.0.1:8000" });
+// In production the frontend is served behind the same nginx host as the
+// API (see deploy/nginx-gvs.conf), so requests can stay relative ("").
+// VITE_API_BASE_URL can override this for local dev against a remote backend.
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || "" });
 
 export const uploadReport = (file) => {
   const form = new FormData();

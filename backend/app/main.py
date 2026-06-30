@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,9 +10,16 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="ГВС Аналитика")
 
+# In production the frontend is served by nginx on the same origin and
+# proxies /api/* to this service, so no cross-origin requests happen and
+# CORS_ORIGINS can stay unset. Set it (comma-separated) only if the
+# frontend is hosted on a different origin.
+cors_origins = os.environ.get("CORS_ORIGINS", "")
+allow_origins = [o.strip() for o in cors_origins.split(",") if o.strip()] or ["http://127.0.0.1:5173", "http://localhost:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
