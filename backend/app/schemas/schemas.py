@@ -59,7 +59,6 @@ class DynamicsPoint(BaseModel):
 
 class FilterOptions(BaseModel):
     object_types: list[str]
-    schemes: list[str]
     system_types: list[str]
     sources: list[str]
 

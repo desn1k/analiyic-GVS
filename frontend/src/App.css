@@ -114,7 +114,7 @@ h2 { font-size: 16px; font-weight: 600; margin: 0 0 16px; letter-spacing: -0.01e
 .filters-bar select.source-select { max-width: 280px; }
 .filters-bar input { min-width: 220px; }
 
-.table-wrap { overflow-x: auto; max-width: 100%; border-radius: var(--radius-md); }
+.table-wrap { overflow: auto; max-width: 100%; max-height: 70vh; border-radius: var(--radius-md); }
 
 table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
 th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); word-break: break-word; vertical-align: top; }

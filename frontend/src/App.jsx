@@ -149,7 +149,7 @@ function describeFilters(v) {
   const parts = [];
   if (v.source_name) parts.push(`Источник: ${v.source_name}`);
   if (v.object_type) parts.push(`Тип объекта: ${v.object_type}`);
-  if (v.scheme) parts.push(`Схема ${v.scheme}`);
+  if (v.is_dead_end) parts.push(`Тупиковая: ${v.is_dead_end === "да" ? "Да" : "Нет"}`);
   if (v.system_type) parts.push(v.system_type);
   if (v.data_quality_preset === "reliable") parts.push("Достоверные (≥52%)");
   if (v.data_quality_preset === "unreliable") parts.push("Недостоверные (<52%)");

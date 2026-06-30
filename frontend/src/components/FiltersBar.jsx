@@ -34,11 +34,10 @@ export default function FiltersBar({ filters, value, onChange }) {
           <option key={t} value={t}>{t}</option>
         ))}
       </select>
-      <select value={value.scheme || ""} onChange={set("scheme")}>
-        <option value="">Все схемы</option>
-        {filters.schemes.map((s) => (
-          <option key={s} value={s}>Схема {s}</option>
-        ))}
+      <select value={value.is_dead_end || ""} onChange={set("is_dead_end")}>
+        <option value="">Тупиковая: все</option>
+        <option value="да">Тупиковая: Да</option>
+        <option value="нет">Тупиковая: Нет</option>
       </select>
       <select value={value.system_type || ""} onChange={set("system_type")}>
         <option value="">Открытая/Закрытая</option>

@@ -13,11 +13,11 @@ from app.schemas.schemas import (
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
-def _apply_filters(q, object_type, scheme, system_type, source_name, object_search):
+def _apply_filters(q, object_type, is_dead_end, system_type, source_name, object_search):
     if object_type:
         q = q.filter(TuReportRow.object_type == object_type)
-    if scheme:
-        q = q.filter(TuReportRow.scheme == scheme)
+    if is_dead_end:
+        q = q.filter(TuReportRow.is_dead_end.ilike(is_dead_end))
     if system_type:
         q = q.filter(TuReportRow.system_type == system_type)
     if source_name:
@@ -54,7 +54,7 @@ def _to_out(row: TuReportRow) -> TuRowOut:
 def list_tu_rows(
     period_id: int,
     object_type: Optional[str] = None,
-    scheme: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
     system_type: Optional[str] = None,
     source_name: Optional[str] = None,
     search: Optional[str] = None,
@@ -67,7 +67,7 @@ def list_tu_rows(
     db: Session = Depends(get_db),
 ):
     q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
-    q = _apply_filters(q, object_type, scheme, system_type, source_name, search)
+    q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, search)
     rows = [_to_out(r) for r in q.all()]
 
     if min_violation_pct is not None:
@@ -85,18 +85,17 @@ def list_tu_rows(
 def get_filters(period_id: int, db: Session = Depends(get_db)):
     q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
     object_types = sorted({r[0] for r in q.with_entities(TuReportRow.object_type) if r[0]})
-    schemes = sorted({r[0] for r in q.with_entities(TuReportRow.scheme) if r[0]})
     system_types = sorted({r[0] for r in q.with_entities(TuReportRow.system_type) if r[0]})
     sources = sorted({r[0] for r in q.with_entities(TuReportRow.source_name) if r[0]})
     return FilterOptions(
-        object_types=object_types, schemes=schemes, system_types=system_types, sources=sources,
+        object_types=object_types, system_types=system_types, sources=sources,
     )
 
 
 @router.get("/dynamics", response_model=list[DynamicsPoint])
 def get_dynamics(
     object_type: Optional[str] = None,
-    scheme: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
     system_type: Optional[str] = None,
     source_name: Optional[str] = None,
     object_id: Optional[str] = None,
@@ -106,7 +105,7 @@ def get_dynamics(
     points = []
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, scheme, system_type, source_name, None)
+        q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
         if object_id:
             q = q.filter(TuReportRow.object_id == object_id)
         rows = q.all()
@@ -136,7 +135,7 @@ def get_dynamics(
 @router.get("/weekly-summary", response_model=list[WeeklySummary])
 def get_weekly_summary(
     object_type: Optional[str] = None,
-    scheme: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
     system_type: Optional[str] = None,
     source_name: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -146,7 +145,7 @@ def get_weekly_summary(
     result = []
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, scheme, system_type, source_name, None)
+        q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
         rows = q.all()
         if not rows:
             continue
@@ -181,7 +180,7 @@ def get_weekly_summary(
 @router.get("/object-comparison", response_model=ObjectComparisonOut)
 def get_object_comparison(
     object_type: Optional[str] = None,
-    scheme: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
     system_type: Optional[str] = None,
     source_name: Optional[str] = None,
     search: Optional[str] = None,
@@ -195,7 +194,7 @@ def get_object_comparison(
 
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, scheme, system_type, source_name, search)
+        q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, search)
         rows = q.all()
         if min_data_quality_pct is not None:
             rows = [r for r in rows if _data_quality_pct(r) >= min_data_quality_pct]
