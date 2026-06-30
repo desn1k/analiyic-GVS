@@ -1,15 +1,15 @@
 const COLUMNS = [
-  { key: "object_name", label: "Объект", wrap: true },
-  { key: "city", label: "Город" },
-  { key: "tu_name", label: "ТУ" },
-  { key: "object_type", label: "Тип объекта", wrap: true },
-  { key: "scheme", label: "Схема" },
-  { key: "avg_temp_gvs", label: "Сред. T, °C" },
-  { key: "volume_total", label: "Объём, м³" },
-  { key: "violation_pct", label: "% с нарушением" },
-  { key: "hours_violation_low", label: "Часов занижение" },
-  { key: "hours_violation_high", label: "Часов завышение" },
-  { key: "data_quality_pct", label: "Достоверность, %" },
+  { key: "object_name", label: "Объект", wrap: true, width: 240 },
+  { key: "source_name", label: "Источник", wrap: true, width: 200 },
+  { key: "tu_name", label: "ТУ", width: 70 },
+  { key: "object_type", label: "Тип объекта", wrap: true, width: 160 },
+  { key: "scheme", label: "Схема", width: 60 },
+  { key: "avg_temp_gvs", label: "Сред. T, °C", width: 70 },
+  { key: "volume_total", label: "Объём, м³", width: 80 },
+  { key: "violation_pct", label: "% с нарушением", width: 90 },
+  { key: "hours_violation_low", label: "Часов занижение", width: 70 },
+  { key: "hours_violation_high", label: "Часов завышение", width: 70 },
+  { key: "data_quality_pct", label: "Достоверность, %", width: 90 },
 ];
 
 export default function TuTable({ rows, sortBy, order, onSort }) {
@@ -20,6 +20,11 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
   return (
     <div className="table-wrap">
       <table>
+        <colgroup>
+          {COLUMNS.map((c) => (
+            <col key={c.key} style={{ width: c.width }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             {COLUMNS.map((c) => (
@@ -33,7 +38,7 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
           {rows.map((r) => (
             <tr key={r.id} className={r.data_quality_pct < 52 ? "low-confidence" : ""}>
               <td className="wrap-cell sticky-col" title={r.object_name}>{r.object_name}</td>
-              <td>{r.city || "—"}</td>
+              <td className="wrap-cell" title={r.source_name}>{r.source_name || "—"}</td>
               <td>{r.tu_name}</td>
               <td className="wrap-cell">{r.object_type}</td>
               <td>{r.scheme || "—"}</td>

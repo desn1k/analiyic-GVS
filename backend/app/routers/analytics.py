@@ -13,15 +13,15 @@ from app.schemas.schemas import (
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
-def _apply_filters(q, object_type, scheme, system_type, city, object_search):
+def _apply_filters(q, object_type, scheme, system_type, source_name, object_search):
     if object_type:
         q = q.filter(TuReportRow.object_type == object_type)
     if scheme:
         q = q.filter(TuReportRow.scheme == scheme)
     if system_type:
         q = q.filter(TuReportRow.system_type == system_type)
-    if city:
-        q = q.filter(TuReportRow.city == city)
+    if source_name:
+        q = q.filter(TuReportRow.source_name == source_name)
     if object_search:
         like = f"%{object_search}%"
         q = q.filter(TuReportRow.object_name.ilike(like))
@@ -51,7 +51,7 @@ def list_tu_rows(
     object_type: Optional[str] = None,
     scheme: Optional[str] = None,
     system_type: Optional[str] = None,
-    city: Optional[str] = None,
+    source_name: Optional[str] = None,
     search: Optional[str] = None,
     min_violation_pct: Optional[float] = None,
     min_data_quality_pct: Optional[float] = None,
@@ -62,7 +62,7 @@ def list_tu_rows(
     db: Session = Depends(get_db),
 ):
     q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
-    q = _apply_filters(q, object_type, scheme, system_type, city, search)
+    q = _apply_filters(q, object_type, scheme, system_type, source_name, search)
     rows = [_to_out(r) for r in q.all()]
 
     if min_violation_pct is not None:
@@ -82,9 +82,9 @@ def get_filters(period_id: int, db: Session = Depends(get_db)):
     object_types = sorted({r[0] for r in q.with_entities(TuReportRow.object_type) if r[0]})
     schemes = sorted({r[0] for r in q.with_entities(TuReportRow.scheme) if r[0]})
     system_types = sorted({r[0] for r in q.with_entities(TuReportRow.system_type) if r[0]})
-    cities = sorted({r[0] for r in q.with_entities(TuReportRow.city) if r[0]})
+    sources = sorted({r[0] for r in q.with_entities(TuReportRow.source_name) if r[0]})
     return FilterOptions(
-        object_types=object_types, schemes=schemes, system_types=system_types, cities=cities,
+        object_types=object_types, schemes=schemes, system_types=system_types, sources=sources,
     )
 
 
@@ -93,7 +93,7 @@ def get_dynamics(
     object_type: Optional[str] = None,
     scheme: Optional[str] = None,
     system_type: Optional[str] = None,
-    city: Optional[str] = None,
+    source_name: Optional[str] = None,
     object_id: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
@@ -101,7 +101,7 @@ def get_dynamics(
     points = []
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, scheme, system_type, city, None)
+        q = _apply_filters(q, object_type, scheme, system_type, source_name, None)
         if object_id:
             q = q.filter(TuReportRow.object_id == object_id)
         rows = q.all()
@@ -133,7 +133,7 @@ def get_weekly_summary(
     object_type: Optional[str] = None,
     scheme: Optional[str] = None,
     system_type: Optional[str] = None,
-    city: Optional[str] = None,
+    source_name: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """Сводка по неделям: объекты агрегируются (несколько ТУ на объект суммируются)."""
@@ -141,7 +141,7 @@ def get_weekly_summary(
     result = []
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, scheme, system_type, city, None)
+        q = _apply_filters(q, object_type, scheme, system_type, source_name, None)
         rows = q.all()
         if not rows:
             continue
@@ -178,7 +178,7 @@ def get_object_comparison(
     object_type: Optional[str] = None,
     scheme: Optional[str] = None,
     system_type: Optional[str] = None,
-    city: Optional[str] = None,
+    source_name: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
@@ -188,13 +188,13 @@ def get_object_comparison(
 
     for p in periods:
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
-        q = _apply_filters(q, object_type, scheme, system_type, city, search)
+        q = _apply_filters(q, object_type, scheme, system_type, source_name, search)
         rows = q.all()
 
         by_object: dict[str, dict] = {}
         for r in rows:
             agg = by_object.setdefault(r.object_id, {
-                "object_name": r.object_name, "city": r.city, "object_type": r.object_type,
+                "object_name": r.object_name, "object_type": r.object_type,
                 "volume_total": 0.0, "violation_volume": 0.0, "above_75": 0.0,
                 "temp_weighted": 0.0,
             })
@@ -209,7 +209,6 @@ def get_object_comparison(
                 row = ObjectComparisonRow(
                     object_id=object_id,
                     object_name=agg["object_name"],
-                    city=agg["city"],
                     object_type=agg["object_type"],
                     periods={},
                 )

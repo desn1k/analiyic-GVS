@@ -36,7 +36,6 @@ class TuReportRow(Base):
     period_id = Column(Integer, ForeignKey("report_periods.id"), nullable=False)
 
     object_name = Column(String)
-    city = Column(String, index=True)
     tu_name = Column(String)
     object_id = Column(String, index=True)
     object_type = Column(String)

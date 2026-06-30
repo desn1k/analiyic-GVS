@@ -8,10 +8,16 @@ export default function ObjectComparisonTable({ data }) {
   return (
     <div className="table-wrap">
       <table>
+        <colgroup>
+          <col style={{ width: 260 }} />
+          <col style={{ width: 170 }} />
+          {periods.map((p) => (
+            <col key={p.id} style={{ width: 130 }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th>Объект</th>
-            <th>Город</th>
             <th>Тип объекта</th>
             {periods.map((p) => (
               <th key={p.id}>{p.period_start} — {p.period_end}</th>
@@ -22,7 +28,6 @@ export default function ObjectComparisonTable({ data }) {
           {objects.map((o) => (
             <tr key={o.object_id}>
               <td className="wrap-cell sticky-col" title={o.object_name}>{o.object_name}</td>
-              <td>{o.city || "—"}</td>
               <td className="wrap-cell">{o.object_type || "—"}</td>
               {periods.map((p) => {
                 const m = o.periods[p.id];

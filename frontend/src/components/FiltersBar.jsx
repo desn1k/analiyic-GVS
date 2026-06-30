@@ -22,10 +22,10 @@ export default function FiltersBar({ filters, value, onChange }) {
 
   return (
     <div className="filters-bar">
-      <select value={value.city || ""} onChange={set("city")}>
-        <option value="">Все города</option>
-        {filters.cities.map((c) => (
-          <option key={c} value={c}>{c}</option>
+      <select className="source-select" value={value.source_name || ""} onChange={set("source_name")}>
+        <option value="">Все источники</option>
+        {filters.sources.map((s) => (
+          <option key={s} value={s}>{s}</option>
         ))}
       </select>
       <select value={value.object_type || ""} onChange={set("object_type")}>

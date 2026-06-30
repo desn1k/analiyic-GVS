@@ -29,7 +29,6 @@ def ingest_report(db: Session, file, filename: str) -> ReportPeriod:
         db.add(TuReportRow(
             period_id=period.id,
             object_name=r["object_name"],
-            city=r["city"],
             tu_name=r["tu_name"],
             object_id=r["object_id"],
             object_type=r["object_type"],

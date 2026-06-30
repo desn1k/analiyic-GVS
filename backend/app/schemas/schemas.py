@@ -20,7 +20,6 @@ class TuRowOut(BaseModel):
 
     id: int
     object_name: Optional[str]
-    city: Optional[str]
     tu_name: Optional[str]
     object_id: Optional[str]
     object_type: Optional[str]
@@ -62,7 +61,7 @@ class FilterOptions(BaseModel):
     object_types: list[str]
     schemes: list[str]
     system_types: list[str]
-    cities: list[str]
+    sources: list[str]
 
 
 class WeeklySummary(BaseModel):
@@ -90,7 +89,6 @@ class ObjectPeriodMetric(BaseModel):
 class ObjectComparisonRow(BaseModel):
     object_id: str
     object_name: str
-    city: Optional[str] = None
     object_type: Optional[str] = None
     periods: dict[int, ObjectPeriodMetric]
 
