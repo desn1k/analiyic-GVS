@@ -1,7 +1,8 @@
 const COLUMNS = [
-  { key: "object_name", label: "Объект" },
+  { key: "object_name", label: "Объект", wrap: true },
+  { key: "city", label: "Город" },
   { key: "tu_name", label: "ТУ" },
-  { key: "object_type", label: "Тип объекта" },
+  { key: "object_type", label: "Тип объекта", wrap: true },
   { key: "scheme", label: "Схема" },
   { key: "avg_temp_gvs", label: "Сред. T, °C" },
   { key: "volume_total", label: "Объём, м³" },
@@ -31,9 +32,10 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} className={r.data_quality_pct < 52 ? "low-confidence" : ""}>
-              <td title={r.object_name}>{truncate(r.object_name, 50)}</td>
+              <td className="wrap-cell sticky-col" title={r.object_name}>{r.object_name}</td>
+              <td>{r.city || "—"}</td>
               <td>{r.tu_name}</td>
-              <td>{r.object_type}</td>
+              <td className="wrap-cell">{r.object_type}</td>
               <td>{r.scheme || "—"}</td>
               <td>{fmtNum(r.avg_temp_gvs)}</td>
               <td>{fmtNum(r.volume_total)}</td>
@@ -54,9 +56,4 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
 
 function fmtNum(v) {
   return v === null || v === undefined ? "—" : Number(v).toFixed(1);
-}
-
-function truncate(s, n) {
-  if (!s) return "";
-  return s.length > n ? s.slice(0, n) + "…" : s;
 }

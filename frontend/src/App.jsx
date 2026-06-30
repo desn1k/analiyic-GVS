@@ -3,7 +3,9 @@ import UploadPanel from "./components/UploadPanel";
 import DynamicsChart from "./components/DynamicsChart";
 import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
-import { getPeriods, getDynamics, getFilters, getTuRows } from "./api/client";
+import WeeklySummaryTable from "./components/WeeklySummaryTable";
+import ObjectComparisonTable from "./components/ObjectComparisonTable";
+import { getPeriods, getDynamics, getFilters, getTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
 import "./App.css";
 
 export default function App() {
@@ -15,6 +17,9 @@ export default function App() {
   const [sortBy, setSortBy] = useState("violation_pct");
   const [order, setOrder] = useState("desc");
   const [tuRows, setTuRows] = useState([]);
+  const [weeklySummary, setWeeklySummary] = useState([]);
+  const [objectComparison, setObjectComparison] = useState(null);
+  const [comparisonFilterValue, setComparisonFilterValue] = useState({});
 
   const reload = useCallback(async () => {
     const ps = await getPeriods();
@@ -38,6 +43,14 @@ export default function App() {
     getDynamics(filterValue).then(setDynamics);
   }, [filterValue]);
 
+  useEffect(() => {
+    getWeeklySummary(filterValue).then(setWeeklySummary);
+  }, [filterValue]);
+
+  useEffect(() => {
+    getObjectComparison(comparisonFilterValue).then(setObjectComparison);
+  }, [comparisonFilterValue]);
+
   const handleSort = (key) => {
     if (key === sortBy) setOrder(order === "desc" ? "asc" : "desc");
     else { setSortBy(key); setOrder("desc"); }
@@ -53,6 +66,17 @@ export default function App() {
       <section className="card">
         <h2>Динамика во времени</h2>
         <DynamicsChart data={dynamics} />
+      </section>
+
+      <section className="card">
+        <h2>Сводка по неделям</h2>
+        <WeeklySummaryTable data={weeklySummary} />
+      </section>
+
+      <section className="card">
+        <h2>Сравнение объектов по неделям</h2>
+        <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
+        <ObjectComparisonTable data={objectComparison} />
       </section>
 
       <section className="card">

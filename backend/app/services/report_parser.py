@@ -58,6 +58,22 @@ FLOAT_FIELDS = {
 }
 
 
+CITY_RE = re.compile(r"(?:^|,)\s*([А-Яа-яЁё\-]+(?:\s[А-Яа-яЁё\-]+)*)\s+г(?:\s*[,(]|$)")
+
+
+def extract_city(object_name: str) -> str | None:
+    """Эвристика: ищет сегмент вида '<Город> г' в адресе объекта,
+    пропуская сегменты вида '<Область> обл'."""
+    if not object_name:
+        return None
+    for m in CITY_RE.finditer(object_name):
+        name = m.group(1).strip()
+        if "обл" not in name:
+            return name
+    first = object_name.split(",")[0].strip()
+    return first or None
+
+
 def _parse_date(s: str) -> date:
     s = s.strip()
     fmt = "%d.%m.%Y" if len(s.split(".")[-1]) == 4 else "%d.%m.%y"
@@ -125,6 +141,7 @@ def parse_report(file: BinaryIO):
             elif isinstance(val, str):
                 val = val.strip()
             row[name] = val
+        row["city"] = extract_city(row["object_name"])
         rows.append(row)
 
     return period_start, period_end, generated_at, rows

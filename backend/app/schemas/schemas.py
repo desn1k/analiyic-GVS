@@ -20,6 +20,7 @@ class TuRowOut(BaseModel):
 
     id: int
     object_name: Optional[str]
+    city: Optional[str]
     tu_name: Optional[str]
     object_id: Optional[str]
     object_type: Optional[str]
@@ -61,3 +62,39 @@ class FilterOptions(BaseModel):
     object_types: list[str]
     schemes: list[str]
     system_types: list[str]
+    cities: list[str]
+
+
+class WeeklySummary(BaseModel):
+    period_id: int
+    period_start: date
+    period_end: date
+    objects_count: int
+    tu_count: int
+    objects_with_violation: int
+    volume_total: float
+    violation_volume: float
+    violation_pct: float
+    overheat_count: int
+
+
+class ObjectPeriodMetric(BaseModel):
+    period_id: int
+    volume_total: float
+    violation_volume: float
+    violation_pct: float
+    avg_temp_gvs: float
+    has_overheat: bool
+
+
+class ObjectComparisonRow(BaseModel):
+    object_id: str
+    object_name: str
+    city: Optional[str] = None
+    object_type: Optional[str] = None
+    periods: dict[int, ObjectPeriodMetric]
+
+
+class ObjectComparisonOut(BaseModel):
+    periods: list[PeriodOut]
+    objects: list[ObjectComparisonRow]
