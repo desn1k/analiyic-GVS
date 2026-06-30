@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 
 const COLUMNS = [
-  { key: "object_name", label: "Объект", wrap: true, width: 240 },
-  { key: "source_name", label: "Источник", wrap: true, width: 200 },
-  { key: "object_type", label: "Тип объекта", wrap: true, width: 160 },
-  { key: "is_dead_end", label: "Тупиковая", width: 70 },
-  { key: "system_type", label: "Схема", width: 80 },
-  { key: "avg_temp_gvs", label: "Сред. T, °C", width: 70 },
-  { key: "volume_total", label: "Объём, м³", width: 80 },
-  { key: "violation_pct", label: "% с нарушением", width: 90 },
-  { key: "hours_violation_low", label: "Часов занижение", width: 70 },
-  { key: "hours_violation_high", label: "Часов завышение", width: 70 },
-  { key: "data_quality_pct", label: "Достоверность, %", width: 90 },
+  { key: "object_name", label: "Объект", wrap: true, width: "17%" },
+  { key: "source_name", label: "Источник", wrap: true, width: "14%" },
+  { key: "object_type", label: "Тип объекта", wrap: true, width: "11%" },
+  { key: "is_dead_end", label: "Тупиковая", width: "6%" },
+  { key: "system_type", label: "Схема", width: "7%" },
+  { key: "avg_temp_gvs", label: "Сред. T, °C", width: "6%" },
+  { key: "volume_total", label: "Объём, м³", width: "7%" },
+  { key: "violation_pct", label: "% с нарушением", width: "8%" },
+  { key: "hours_violation_low", label: "Часов занижение", width: "8%" },
+  { key: "hours_violation_high", label: "Часов завышение", width: "8%" },
+  { key: "data_quality_pct", label: "Достоверность, %", width: "8%" },
 ];
 
 const PAGE_SIZES = [25, 50, 100, 250];
