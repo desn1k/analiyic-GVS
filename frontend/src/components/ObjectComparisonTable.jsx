@@ -43,6 +43,9 @@ export default function ObjectComparisonTable({ data }) {
                     <div className={`metric-sub${m.data_quality_pct < 52 ? " low-confidence-text" : ""}`}>
                       Достоверность: {fmtNum(m.data_quality_pct)}%
                     </div>
+                    {m.probable_cause && (
+                      <div className="metric-sub">Причина: {m.probable_cause}</div>
+                    )}
                   </td>
                 );
               })}

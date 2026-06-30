@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 
 const COLUMNS = [
-  { key: "object_name", label: "Объект", wrap: true, width: "17%" },
-  { key: "source_name", label: "Источник", wrap: true, width: "14%" },
-  { key: "object_type", label: "Тип объекта", wrap: true, width: "11%" },
-  { key: "is_dead_end", label: "Тупиковая", width: "6%" },
-  { key: "system_type", label: "Схема", width: "7%" },
-  { key: "avg_temp_gvs", label: "Сред. T, °C", width: "6%" },
-  { key: "volume_total", label: "Объём, м³", width: "7%" },
-  { key: "violation_pct", label: "% с нарушением", width: "8%" },
-  { key: "hours_violation_low", label: "Часов занижение", width: "8%" },
-  { key: "hours_violation_high", label: "Часов завышение", width: "8%" },
-  { key: "data_quality_pct", label: "Достоверность, %", width: "8%" },
+  { key: "object_name", label: "Объект", wrap: true, width: "14%" },
+  { key: "source_name", label: "Источник", wrap: true, width: "11%" },
+  { key: "object_type", label: "Тип объекта", wrap: true, width: "9%" },
+  { key: "is_dead_end", label: "Тупиковая", width: "5%" },
+  { key: "system_type", label: "Схема", width: "6%" },
+  { key: "avg_temp_gvs", label: "Сред. T, °C", width: "5%" },
+  { key: "volume_total", label: "Объём, м³", width: "6%" },
+  { key: "violation_pct", label: "% с нарушением", width: "7%" },
+  { key: "hours_violation_low", label: "Часов занижение", width: "6%" },
+  { key: "hours_violation_high", label: "Часов завышение", width: "6%" },
+  { key: "data_quality_pct", label: "Достоверность, %", width: "7%" },
+  { key: "probable_cause", label: "Вероятная причина", wrap: true, width: "18%" },
 ];
 
 const PAGE_SIZES = [25, 50, 100, 250];
@@ -85,6 +86,7 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
                 <td>{r.hours_violation_low ?? 0}</td>
                 <td>{r.hours_violation_high ?? 0}</td>
                 <td>{fmtNum(r.data_quality_pct)}%</td>
+                <td className="wrap-cell" title={r.probable_cause}>{r.probable_cause || "—"}</td>
               </tr>
             ))}
           </tbody>

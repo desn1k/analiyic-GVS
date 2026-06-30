@@ -45,12 +45,49 @@ def _data_quality_pct(row: TuReportRow) -> float:
     return round(_cap_pct(pct), 1)
 
 
+def _probable_cause(
+    below_40: float, v40_60: float, above_75: float,
+    hours_violation_low: int, hours_violation_high: int, hours_total: int,
+    is_dead_end: Optional[str], data_quality_pct: float,
+) -> str:
+    """Эвристика (rule-based) для определения вероятной причины нарушения по объёмам/часам.
+    При появлении данных приборов (почасовые ряды) можно заменить/дополнить ML-моделью."""
+    violation = below_40 + v40_60 + above_75
+    if violation <= 0:
+        return "Норма"
+    if data_quality_pct < 52:
+        return "Недостаточно данных для определения причины"
+
+    buckets = {"below_40": below_40, "40_60": v40_60, "above_75": above_75}
+    dominant = max(buckets, key=buckets.get)
+
+    if dominant == "above_75":
+        cause = "Перегрев — завышенная температура подачи"
+    elif dominant == "below_40":
+        cause = "Сильный недогрев — ниже норматива"
+    else:
+        cause = "Погранично занижение — близко к нижней границе нормы"
+
+    if dominant != "above_75" and str(is_dead_end or "").strip().lower() == "да":
+        cause += " (тупиковая ветка — возможен дефицит циркуляции)"
+
+    if hours_total and (hours_violation_low + hours_violation_high) / hours_total > 0.5:
+        cause += "; нарушение хроническое (>50% часов периода)"
+
+    return cause
+
+
 def _to_out(row: TuReportRow) -> TuRowOut:
     out = TuRowOut.model_validate(row)
     violation = _violation_volume(row)
     out.violation_volume = round(violation, 3)
     out.violation_pct = round(_cap_pct(violation / row.volume_total * 100), 2) if row.volume_total else 0.0
     out.data_quality_pct = _data_quality_pct(row)
+    out.probable_cause = _probable_cause(
+        row.volume_below_40 or 0, row.volume_40_60 or 0, row.volume_above_75 or 0,
+        row.hours_violation_low or 0, row.hours_violation_high or 0, row.hours_total or 0,
+        row.is_dead_end, out.data_quality_pct,
+    )
     return out
 
 
@@ -210,15 +247,23 @@ def get_object_comparison(
         for r in rows:
             agg = by_object.setdefault(r.object_id, {
                 "object_name": r.object_name, "object_type": r.object_type,
-                "volume_total": 0.0, "violation_volume": 0.0, "above_75": 0.0,
+                "volume_total": 0.0, "violation_volume": 0.0,
+                "below_40": 0.0, "v40_60": 0.0, "above_75": 0.0,
                 "temp_weighted": 0.0, "total_records": 0, "valid_records": 0,
+                "hours_total": 0, "hours_violation_low": 0, "hours_violation_high": 0,
+                "is_dead_end": r.is_dead_end,
             })
             agg["volume_total"] += r.volume_total or 0
             agg["violation_volume"] += _violation_volume(r)
+            agg["below_40"] += r.volume_below_40 or 0
+            agg["v40_60"] += r.volume_40_60 or 0
             agg["above_75"] += r.volume_above_75 or 0
             agg["temp_weighted"] += (r.avg_temp_gvs or 0) * (r.volume_total or 0)
             agg["total_records"] += r.total_records or 0
             agg["valid_records"] += r.valid_records or 0
+            agg["hours_total"] += r.hours_total or 0
+            agg["hours_violation_low"] += r.hours_violation_low or 0
+            agg["hours_violation_high"] += r.hours_violation_high or 0
 
         for object_id, agg in by_object.items():
             row = objects.get(object_id)
@@ -232,14 +277,20 @@ def get_object_comparison(
                 objects[object_id] = row
 
             vt = agg["volume_total"]
+            data_quality_pct = round(_cap_pct(agg["valid_records"] / agg["total_records"] * 100), 1) if agg["total_records"] else 0.0
             row.periods[p.id] = ObjectPeriodMetric(
                 period_id=p.id,
                 volume_total=round(vt, 2),
                 violation_volume=round(agg["violation_volume"], 2),
                 violation_pct=round(_cap_pct(agg["violation_volume"] / vt * 100), 2) if vt else 0.0,
                 avg_temp_gvs=round(agg["temp_weighted"] / vt, 2) if vt else 0.0,
-                data_quality_pct=round(_cap_pct(agg["valid_records"] / agg["total_records"] * 100), 1) if agg["total_records"] else 0.0,
+                data_quality_pct=data_quality_pct,
                 has_overheat=agg["above_75"] > 0,
+                probable_cause=_probable_cause(
+                    agg["below_40"], agg["v40_60"], agg["above_75"],
+                    agg["hours_violation_low"], agg["hours_violation_high"], agg["hours_total"],
+                    agg["is_dead_end"], data_quality_pct,
+                ),
             )
 
     period_counts = {}

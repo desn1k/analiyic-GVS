@@ -42,6 +42,7 @@ class TuRowOut(BaseModel):
     violation_volume: float = 0.0
     violation_pct: float = 0.0
     data_quality_pct: float = 0.0
+    probable_cause: str = ""
 
 
 class DynamicsPoint(BaseModel):
@@ -84,6 +85,7 @@ class ObjectPeriodMetric(BaseModel):
     avg_temp_gvs: float
     data_quality_pct: float
     has_overheat: bool
+    probable_cause: str = ""
 
 
 class ObjectComparisonRow(BaseModel):
