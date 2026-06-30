@@ -32,7 +32,7 @@ install_base_packages() {
     systemctl restart nginx || true
   fi
 
-  if ! command -v node >/dev/null 2>&1; then
+  if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
     if curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
       apt-get install -y nodejs
     else
