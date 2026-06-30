@@ -196,12 +196,14 @@ def get_object_comparison(
             agg = by_object.setdefault(r.object_id, {
                 "object_name": r.object_name, "object_type": r.object_type,
                 "volume_total": 0.0, "violation_volume": 0.0, "above_75": 0.0,
-                "temp_weighted": 0.0,
+                "temp_weighted": 0.0, "total_records": 0, "valid_records": 0,
             })
             agg["volume_total"] += r.volume_total or 0
             agg["violation_volume"] += _violation_volume(r)
             agg["above_75"] += r.volume_above_75 or 0
             agg["temp_weighted"] += (r.avg_temp_gvs or 0) * (r.volume_total or 0)
+            agg["total_records"] += r.total_records or 0
+            agg["valid_records"] += r.valid_records or 0
 
         for object_id, agg in by_object.items():
             row = objects.get(object_id)
@@ -221,6 +223,7 @@ def get_object_comparison(
                 violation_volume=round(agg["violation_volume"], 2),
                 violation_pct=round(agg["violation_volume"] / vt * 100, 2) if vt else 0.0,
                 avg_temp_gvs=round(agg["temp_weighted"] / vt, 2) if vt else 0.0,
+                data_quality_pct=round(agg["valid_records"] / agg["total_records"] * 100, 1) if agg["total_records"] else 0.0,
                 has_overheat=agg["above_75"] > 0,
             )
 

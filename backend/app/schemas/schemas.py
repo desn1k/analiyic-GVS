@@ -83,6 +83,7 @@ class ObjectPeriodMetric(BaseModel):
     violation_volume: float
     violation_pct: float
     avg_temp_gvs: float
+    data_quality_pct: float
     has_overheat: bool
 
 

@@ -1,11 +1,14 @@
 from sqlalchemy.orm import Session
 
 from app.models import ReportPeriod, TuReportRow
-from app.services.report_parser import parse_report
+from app.services.report_parser import extract_city, parse_report
+
+ANALYZED_CITY = "Саратов"
 
 
 def ingest_report(db: Session, file, filename: str) -> ReportPeriod:
     period_start, period_end, generated_at, rows = parse_report(file)
+    rows = [r for r in rows if extract_city(r["object_name"]) == ANALYZED_CITY]
 
     existing = (
         db.query(ReportPeriod)

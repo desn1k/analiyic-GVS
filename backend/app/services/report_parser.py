@@ -7,6 +7,20 @@ import openpyxl
 
 TITLE_RE = re.compile(r"за\s+(\d{2}\.\d{2}\.\d{2,4})\s*-\s*(\d{2}\.\d{2}\.\d{2,4})")
 GENERATED_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})")
+CITY_RE = re.compile(r"(?:^|,)\s*([А-Яа-яЁё\-]+(?:\s[А-Яа-яЁё\-]+)*)\s+г(?:\s*[,(]|$)")
+
+
+def extract_city(object_name: str) -> str | None:
+    """Эвристика: ищет сегмент вида '<Город> г' в адресе объекта,
+    пропуская сегменты вида '<Область> обл'."""
+    if not object_name:
+        return None
+    for m in CITY_RE.finditer(object_name):
+        name = m.group(1).strip()
+        if "обл" not in name:
+            return name
+    first = object_name.split(",")[0].strip()
+    return first or None
 
 # Позиции колонок (0-based) в строке данных, начиная со строки 5.
 COLUMNS = [

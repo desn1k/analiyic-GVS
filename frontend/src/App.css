@@ -91,5 +91,22 @@ table.scheme-legend th:nth-child(2), table.scheme-legend td:nth-child(2) { width
 table.scheme-legend tr:hover td { background: #f0f6fc; }
 table.scheme-legend tr.sorted td { background: #e7f1fc; }
 
+.metric-sub { font-size: 11px; color: #777; margin-top: 2px; }
+.low-confidence-text { color: #b8860b; }
+
+.section-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.section-header-row h2 { margin: 0; }
+.section-header-actions { display: flex; align-items: center; gap: 8px; }
+.toggle-filters-btn {
+  background: #fff; border: 1px solid #d0d5dd; border-radius: 6px;
+  width: 30px; height: 30px; font-size: 17px; line-height: 1; cursor: pointer; color: #1971c2;
+}
+.toggle-filters-btn:hover { background: #f0f6fc; }
+.analyze-btn {
+  background: #1971c2; color: #fff; border: none; border-radius: 6px;
+  padding: 7px 14px; font-size: 13px; cursor: pointer;
+}
+.analyze-btn:hover { background: #1864ab; }
+
 .empty-hint { color: #888; font-size: 14px; }
 .footnote { font-size: 11px; color: #888; margin-top: 8px; }

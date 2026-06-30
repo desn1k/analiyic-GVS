@@ -12,7 +12,7 @@ export default function ObjectComparisonTable({ data }) {
           <col style={{ width: 260 }} />
           <col style={{ width: 170 }} />
           {periods.map((p) => (
-            <col key={p.id} style={{ width: 130 }} />
+            <col key={p.id} style={{ width: 170 }} />
           ))}
         </colgroup>
         <thead>
@@ -33,8 +33,14 @@ export default function ObjectComparisonTable({ data }) {
                 const m = o.periods[p.id];
                 if (!m) return <td key={p.id}>—</td>;
                 return (
-                  <td key={p.id} className={m.violation_pct > 0 ? "violation" : ""}>
-                    {fmtNum(m.violation_pct)}%{m.has_overheat ? " 🔥" : ""}
+                  <td key={p.id}>
+                    <div className={m.violation_pct > 0 ? "violation" : ""}>
+                      {fmtNum(m.violation_pct)}% нарушений{m.has_overheat ? " 🔥" : ""}
+                    </div>
+                    <div className="metric-sub">Объём: {fmtNum(m.volume_total)} м³</div>
+                    <div className={`metric-sub${m.data_quality_pct < 52 ? " low-confidence-text" : ""}`}>
+                      Достоверность: {fmtNum(m.data_quality_pct)}%
+                    </div>
                   </td>
                 );
               })}

@@ -5,9 +5,10 @@ import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
 import WeeklySummaryTable from "./components/WeeklySummaryTable";
 import ObjectComparisonTable from "./components/ObjectComparisonTable";
-import SchemeLegend from "./components/SchemeLegend";
 import { getPeriods, getDynamics, getFilters, getTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
 import "./App.css";
+
+const isAnalysisView = new URLSearchParams(window.location.search).get("view") === "analysis";
 
 export default function App() {
   const [periods, setPeriods] = useState([]);
@@ -21,6 +22,7 @@ export default function App() {
   const [weeklySummary, setWeeklySummary] = useState([]);
   const [objectComparison, setObjectComparison] = useState(null);
   const [comparisonFilterValue, setComparisonFilterValue] = useState({});
+  const [showComparisonFilters, setShowComparisonFilters] = useState(false);
 
   const reload = useCallback(async () => {
     const ps = await getPeriods();
@@ -57,6 +59,24 @@ export default function App() {
     else { setSortBy(key); setOrder("desc"); }
   };
 
+  const openAnalysisTab = () => {
+    window.open(`${window.location.pathname}?view=analysis`, "_blank");
+  };
+
+  if (isAnalysisView) {
+    return (
+      <div className="app">
+        <header>
+          <h1>Сравнение объектов по неделям</h1>
+        </header>
+        <section className="card">
+          <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
+          <ObjectComparisonTable data={objectComparison} />
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header>
@@ -75,8 +95,25 @@ export default function App() {
       </section>
 
       <section className="card">
-        <h2>Сравнение объектов по неделям</h2>
-        <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
+        <div className="section-header-row">
+          <h2>Сравнение объектов по неделям</h2>
+          <div className="section-header-actions">
+            <button
+              type="button"
+              className="toggle-filters-btn"
+              title="Фильтры"
+              onClick={() => setShowComparisonFilters((v) => !v)}
+            >
+              {showComparisonFilters ? "−" : "+"}
+            </button>
+            <button type="button" className="analyze-btn" onClick={openAnalysisTab}>
+              Анализ
+            </button>
+          </div>
+        </div>
+        {showComparisonFilters && (
+          <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
+        )}
         <ObjectComparisonTable data={objectComparison} />
       </section>
 
@@ -94,11 +131,6 @@ export default function App() {
           )}
         </div>
         <FiltersBar filters={filters} value={filterValue} onChange={setFilterValue} />
-        <SchemeLegend
-          schemes={filters?.schemes}
-          value={filterValue.scheme}
-          onSelect={(scheme) => setFilterValue({ ...filterValue, scheme })}
-        />
         <TuTable rows={tuRows} sortBy={sortBy} order={order} onSort={handleSort} />
       </section>
     </div>
