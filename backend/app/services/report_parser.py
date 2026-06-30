@@ -9,6 +9,63 @@ TITLE_RE = re.compile(r"за\s+(\d{2}\.\d{2}\.\d{2,4})\s*-\s*(\d{2}\.\d{2}\.\d{2
 GENERATED_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2}:\d{2})")
 CITY_RE = re.compile(r"(?:^|,)\s*([А-Яа-яЁё\-]+(?:\s[А-Яа-яЁё\-]+)*)\s+г(?:\s*[,(]|$)")
 
+HEADER_ROWS = 4  # строки 1-4: заголовок отчёта, дата формирования, шапка таблицы (2 строки)
+
+# Поля ищутся по подстроке в тексте заголовка (строка 3 — основная шапка,
+# строка 4 — подзаголовки блока проверок). Колонки определяются динамически,
+# а не по фиксированным номерам: разные выгрузки отчёта объединяют
+# (merge) заголовочные ячейки по-разному (например, "ID ТУ" может занимать
+# один или два столбца), из-за чего фиксированные индексы "плывут".
+INT_FIELDS = {
+    "total_records", "valid_records", "hours_total",
+    "hours_violation_low", "hours_violation_high", "flow_below_2pct",
+    "check_no_data", "check_vnr", "check_m1_m2", "check_qinj",
+    "check_t_range", "check_t1_lt_t2", "check_v_max", "check_t1_const",
+    "check_t_other",
+}
+FLOAT_FIELDS = {
+    "avg_temp_ctp", "avg_temp_gvs", "contract_load", "volume_total",
+    "volume_below_40", "volume_40_60", "volume_60_75", "volume_above_75",
+}
+
+# (имя поля, предикат(текст_заголовка) -> bool). Проверяются по порядку,
+# первая подходящая ещё не занятая колонка побеждает.
+FIELD_MATCHERS = [
+    ("seq", lambda t: t == "№ пп"),
+    ("object_name", lambda t: t == "Объект"),
+    ("tu_name", lambda t: t == "ТУ"),
+    ("object_id", lambda t: t == "ID объекта"),
+    ("object_type", lambda t: t == "Тип объекта"),
+    ("tu_id", lambda t: t == "ID ТУ"),
+    ("source_name", lambda t: t == "ЦТП/Источник"),
+    ("avg_temp_ctp", lambda t: "Средняя температура ГВС ЦТП" in t),
+    ("is_dead_end", lambda t: "тупиковой системе" in t),
+    ("system_type", lambda t: "закрытой системе" in t),
+    ("total_records", lambda t: t == "Всего записей"),
+    ("valid_records", lambda t: t == "Корректных записей"),
+    ("avg_temp_gvs", lambda t: t.startswith("Средняя температура ГВС,")),
+    ("contract_load", lambda t: "Договорная нагрузка" in t),
+    ("volume_total", lambda t: t.startswith("Объём ГВС")),
+    ("volume_below_40", lambda t: t.startswith("Т1 ГВС < 40")),
+    ("volume_40_60", lambda t: "40 <= Т1 ГВС < 60" in t or "40<=Т1 ГВС<60" in t),
+    ("volume_60_75", lambda t: "60 <= Т1 ГВС < 75" in t or "60<=Т1 ГВС<75" in t),
+    ("volume_above_75", lambda t: t.startswith("Т1 ГВС >= 75") or t.startswith("Т1 ГВС>=75")),
+    ("hours_total", lambda t: "часов периода" in t),
+    ("hours_violation_low", lambda t: "нарушением" in t and "занижение" in t),
+    ("hours_violation_high", lambda t: "нарушением" in t and "завышение" in t),
+    ("flow_below_2pct", lambda t: "Расход менее" in t),
+    ("check_no_data", lambda t: "н/д" in t),
+    ("check_vnr", lambda t: "ВНР" in t),
+    ("check_m1_m2", lambda t: "М1<0" in t or "M1<0" in t),
+    ("check_qinj", lambda t: "Qинж" in t or "Qинж".lower() in t.lower()),
+    ("check_t_range", lambda t: t.startswith("Т>=100") or t.startswith("T>=100")),
+    ("check_t1_lt_t2", lambda t: "T1<T2" in t or "Т1<Т2" in t),
+    ("check_v_max", lambda t: t.startswith("V>") or t.startswith("V >")),
+    ("check_t1_const", lambda t: "const" in t),
+    ("check_t_other", lambda t: t == "Проверка Т"),
+    ("scheme", lambda t: t == "Схема"),
+]
+
 
 def extract_city(object_name: str) -> str | None:
     """Эвристика: ищет сегмент вида '<Город> г' в адресе объекта,
@@ -21,55 +78,6 @@ def extract_city(object_name: str) -> str | None:
             return name
     first = object_name.split(",")[0].strip()
     return first or None
-
-# Позиции колонок (0-based) в строке данных, начиная со строки 5.
-COLUMNS = [
-    ("seq", 0),
-    ("object_name", 1),
-    ("tu_name", 2),
-    ("object_id", 3),
-    ("object_type", 4),
-    ("tu_id", 6),
-    ("source_name", 7),
-    ("avg_temp_ctp", 8),
-    ("is_dead_end", 9),
-    ("system_type", 10),
-    ("total_records", 11),
-    ("valid_records", 13),
-    ("avg_temp_gvs", 14),
-    ("contract_load", 15),
-    ("volume_total", 16),
-    ("volume_below_40", 17),
-    ("volume_40_60", 18),
-    ("volume_60_75", 19),
-    ("volume_above_75", 20),
-    ("hours_total", 21),
-    ("hours_violation_low", 22),
-    ("hours_violation_high", 23),
-    ("flow_below_2pct", 24),
-    ("check_no_data", 25),
-    ("check_vnr", 26),
-    ("check_m1_m2", 27),
-    ("check_qinj", 28),
-    ("check_t_range", 29),
-    ("check_t1_lt_t2", 30),
-    ("check_v_max", 31),
-    ("check_t1_const", 32),
-    ("check_t_other", 33),
-    ("scheme", 34),
-]
-
-INT_FIELDS = {
-    "total_records", "valid_records", "hours_total",
-    "hours_violation_low", "hours_violation_high", "flow_below_2pct",
-    "check_no_data", "check_vnr", "check_m1_m2", "check_qinj",
-    "check_t_range", "check_t1_lt_t2", "check_v_max", "check_t1_const",
-    "check_t_other",
-}
-FLOAT_FIELDS = {
-    "avg_temp_ctp", "avg_temp_gvs", "contract_load", "volume_total",
-    "volume_below_40", "volume_40_60", "volume_60_75", "volume_above_75",
-}
 
 
 def _parse_date(s: str) -> date:
@@ -96,8 +104,58 @@ def _to_float(v):
         return None
 
 
+def _expand_merged_row(ws, row_idx: int, max_col: int) -> list[str]:
+    """Возвращает текст заголовков строки row_idx, заполняя объединённые
+    ячейки значением их левой верхней ячейки (по умолчанию в openpyxl все
+    ячейки объединённого диапазона, кроме первой, имеют значение None)."""
+    values = [ws.cell(row_idx, c).value for c in range(1, max_col + 1)]
+    for rng in ws.merged_cells.ranges:
+        if rng.min_row <= row_idx <= rng.max_row:
+            anchor = ws.cell(rng.min_row, rng.min_col).value
+            for c in range(rng.min_col, rng.max_col + 1):
+                if rng.min_row <= row_idx <= rng.max_row:
+                    values[c - 1] = anchor
+    return [str(v).strip() if v is not None else "" for v in values]
+
+
+def _detect_columns(ws) -> dict[str, int]:
+    """Сопоставляет имена полей с индексами колонок (0-based) по тексту
+    заголовков в строках 3 и 4, устойчиво к сдвигам из-за разного
+    объединения ячеек между разными выгрузками отчёта."""
+    max_col = ws.max_column
+    top = _expand_merged_row(ws, 3, max_col)
+    sub = _expand_merged_row(ws, 4, max_col)
+    combined = [(sub[i] or top[i]) for i in range(max_col)]
+
+    columns: dict[str, int] = {}
+    used = set()
+    for name, pred in FIELD_MATCHERS:
+        for i, text in enumerate(combined):
+            if i in used or not text:
+                continue
+            if pred(text):
+                columns[name] = i
+                used.add(i)
+                break
+
+    required = {"seq", "object_name", "tu_id", "total_records", "valid_records", "volume_total"}
+    missing = required - columns.keys()
+    if missing:
+        raise ValueError(
+            f"Не удалось определить колонки отчёта: {', '.join(sorted(missing))}. "
+            "Похоже, формат файла отличается от ожидаемого."
+        )
+    return columns
+
+
 def parse_report(file: BinaryIO):
     """Возвращает (period_start, period_end, generated_at, rows)."""
+    wb_headers = openpyxl.load_workbook(file, data_only=True, read_only=False)
+    ws_headers = wb_headers[wb_headers.sheetnames[0]]
+    columns = _detect_columns(ws_headers)
+    wb_headers.close()
+
+    file.seek(0)
     wb = openpyxl.load_workbook(file, data_only=True, read_only=True)
     ws = wb[wb.sheetnames[0]]
 
@@ -127,10 +185,18 @@ def parse_report(file: BinaryIO):
     for raw in rows_iter:
         if raw is None or all(v is None for v in raw):
             continue
-        if raw[0] is None or raw[1] is None:
+        seq_val = raw[columns["seq"]]
+        object_val = raw[columns["object_name"]]
+        if seq_val is None or object_val is None:
             continue
-        row = {}
-        for name, idx in COLUMNS:
+        # Некоторые выгрузки склеивают несколько "печатных страниц" в один
+        # лист, повторяя строку заголовков таблицы внутри данных — отсеиваем их.
+        if isinstance(seq_val, str) and seq_val.strip() == "№ пп":
+            continue
+        if isinstance(object_val, str) and object_val.strip() == "Объект":
+            continue
+        row = {name: None for name, _ in FIELD_MATCHERS}
+        for name, idx in columns.items():
             val = raw[idx] if idx < len(raw) else None
             if name in INT_FIELDS:
                 val = _to_int(val)
