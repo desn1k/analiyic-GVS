@@ -16,7 +16,21 @@ require_root() {
 install_base_packages() {
   echo "==> Установка системных пакетов"
   apt-get update -y
-  apt-get install -y python3-venv python3-pip nginx git curl
+  apt-get install -y python3-venv python3-pip git curl
+
+  # В окружениях без поддержки IPv6 (контейнеры, некоторые VPS) штатный
+  # сайт nginx по умолчанию слушает [::]:80, из-за чего postinst-скрипт
+  # пакета падает при первом запуске. Ставим nginx отдельно и, если он
+  # всё же не стартовал по этой причине, чиним конфиг и доводим установку
+  # до конца.
+  if ! apt-get install -y nginx; then
+    sed -i '/listen \[::\]/d' /etc/nginx/sites-available/default 2>/dev/null || true
+    dpkg --configure -a
+  fi
+  if ! systemctl is-active --quiet nginx; then
+    sed -i '/listen \[::\]/d' /etc/nginx/sites-available/default 2>/dev/null || true
+    systemctl restart nginx || true
+  fi
 
   if ! command -v node >/dev/null 2>&1; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
