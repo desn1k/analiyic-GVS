@@ -69,13 +69,14 @@ export default function App() {
   };
 
   if (isAnalysisView) {
+    const summary = describeFilters(comparisonFilterValue);
     return (
       <div className="app">
         <header>
           <h1>Сравнение объектов по неделям</h1>
         </header>
         <section className="card">
-          <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
+          {summary && <p className="applied-filters">Применённые фильтры: {summary}</p>}
           <ObjectComparisonTable data={objectComparison} />
         </section>
       </div>
@@ -142,4 +143,16 @@ export default function App() {
       </section>
     </div>
   );
+}
+
+function describeFilters(v) {
+  const parts = [];
+  if (v.source_name) parts.push(`Источник: ${v.source_name}`);
+  if (v.object_type) parts.push(`Тип объекта: ${v.object_type}`);
+  if (v.scheme) parts.push(`Схема ${v.scheme}`);
+  if (v.system_type) parts.push(v.system_type);
+  if (v.data_quality_preset === "reliable") parts.push("Достоверные (≥52%)");
+  if (v.data_quality_preset === "unreliable") parts.push("Недостоверные (<52%)");
+  if (v.search) parts.push(`Поиск: «${v.search}»`);
+  return parts.join(", ");
 }

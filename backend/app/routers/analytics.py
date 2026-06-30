@@ -32,15 +32,20 @@ def _violation_volume(row: TuReportRow) -> float:
     return (row.volume_below_40 or 0) + (row.volume_40_60 or 0) + (row.volume_above_75 or 0)
 
 
+def _cap_pct(pct: float) -> float:
+    return min(pct, 100.0)
+
+
 def _data_quality_pct(row: TuReportRow) -> float:
-    return round(row.valid_records / row.total_records * 100, 1) if row.total_records else 0.0
+    pct = row.valid_records / row.total_records * 100 if row.total_records else 0.0
+    return round(_cap_pct(pct), 1)
 
 
 def _to_out(row: TuReportRow) -> TuRowOut:
     out = TuRowOut.model_validate(row)
     violation = _violation_volume(row)
     out.violation_volume = round(violation, 3)
-    out.violation_pct = round(violation / row.volume_total * 100, 2) if row.volume_total else 0.0
+    out.violation_pct = round(_cap_pct(violation / row.volume_total * 100), 2) if row.volume_total else 0.0
     out.data_quality_pct = _data_quality_pct(row)
     return out
 
@@ -119,7 +124,7 @@ def get_dynamics(
             period_end=p.period_end,
             volume_total=round(volume_total, 2),
             violation_volume=round(violation_volume, 2),
-            violation_pct=round(violation_volume / volume_total * 100, 2) if volume_total else 0.0,
+            violation_pct=round(_cap_pct(violation_volume / volume_total * 100), 2) if volume_total else 0.0,
             avg_temp_gvs=round(avg_temp, 2),
             hours_violation_low=sum(r.hours_violation_low or 0 for r in rows),
             hours_violation_high=sum(r.hours_violation_high or 0 for r in rows),
@@ -167,7 +172,7 @@ def get_weekly_summary(
             objects_with_violation=objects_with_violation,
             volume_total=round(volume_total, 2),
             violation_volume=round(violation_volume, 2),
-            violation_pct=round(violation_volume / volume_total * 100, 2) if volume_total else 0.0,
+            violation_pct=round(_cap_pct(violation_volume / volume_total * 100), 2) if volume_total else 0.0,
             overheat_count=overheat_count,
         ))
     return result
@@ -180,6 +185,8 @@ def get_object_comparison(
     system_type: Optional[str] = None,
     source_name: Optional[str] = None,
     search: Optional[str] = None,
+    min_data_quality_pct: Optional[float] = None,
+    max_data_quality_pct: Optional[float] = None,
     db: Session = Depends(get_db),
 ):
     """Сравнение объектов по неделям: одна строка на объект, столбцы — периоды."""
@@ -190,6 +197,10 @@ def get_object_comparison(
         q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
         q = _apply_filters(q, object_type, scheme, system_type, source_name, search)
         rows = q.all()
+        if min_data_quality_pct is not None:
+            rows = [r for r in rows if _data_quality_pct(r) >= min_data_quality_pct]
+        if max_data_quality_pct is not None:
+            rows = [r for r in rows if _data_quality_pct(r) <= max_data_quality_pct]
 
         by_object: dict[str, dict] = {}
         for r in rows:
@@ -221,9 +232,9 @@ def get_object_comparison(
                 period_id=p.id,
                 volume_total=round(vt, 2),
                 violation_volume=round(agg["violation_volume"], 2),
-                violation_pct=round(agg["violation_volume"] / vt * 100, 2) if vt else 0.0,
+                violation_pct=round(_cap_pct(agg["violation_volume"] / vt * 100), 2) if vt else 0.0,
                 avg_temp_gvs=round(agg["temp_weighted"] / vt, 2) if vt else 0.0,
-                data_quality_pct=round(agg["valid_records"] / agg["total_records"] * 100, 1) if agg["total_records"] else 0.0,
+                data_quality_pct=round(_cap_pct(agg["valid_records"] / agg["total_records"] * 100), 1) if agg["total_records"] else 0.0,
                 has_overheat=agg["above_75"] > 0,
             )
 
