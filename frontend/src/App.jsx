@@ -8,7 +8,11 @@ import ObjectComparisonTable from "./components/ObjectComparisonTable";
 import { getPeriods, getDynamics, getFilters, getTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
 import "./App.css";
 
-const isAnalysisView = new URLSearchParams(window.location.search).get("view") === "analysis";
+const searchParams = new URLSearchParams(window.location.search);
+const isAnalysisView = searchParams.get("view") === "analysis";
+const initialComparisonFilters = Object.fromEntries(
+  [...searchParams.entries()].filter(([k]) => k !== "view")
+);
 
 export default function App() {
   const [periods, setPeriods] = useState([]);
@@ -21,7 +25,7 @@ export default function App() {
   const [tuRows, setTuRows] = useState([]);
   const [weeklySummary, setWeeklySummary] = useState([]);
   const [objectComparison, setObjectComparison] = useState(null);
-  const [comparisonFilterValue, setComparisonFilterValue] = useState({});
+  const [comparisonFilterValue, setComparisonFilterValue] = useState(initialComparisonFilters);
   const [showComparisonFilters, setShowComparisonFilters] = useState(false);
 
   const reload = useCallback(async () => {
@@ -60,7 +64,8 @@ export default function App() {
   };
 
   const openAnalysisTab = () => {
-    window.open(`${window.location.pathname}?view=analysis`, "_blank");
+    const params = new URLSearchParams({ view: "analysis", ...comparisonFilterValue });
+    window.open(`${window.location.pathname}?${params.toString()}`, "_blank");
   };
 
   if (isAnalysisView) {
@@ -97,22 +102,22 @@ export default function App() {
       <section className="card">
         <div className="section-header-row">
           <h2>Сравнение объектов по неделям</h2>
-          <div className="section-header-actions">
-            <button
-              type="button"
-              className="toggle-filters-btn"
-              title="Фильтры"
-              onClick={() => setShowComparisonFilters((v) => !v)}
-            >
-              {showComparisonFilters ? "−" : "+"}
-            </button>
+          <button
+            type="button"
+            className="toggle-filters-btn"
+            title="Фильтры"
+            onClick={() => setShowComparisonFilters((v) => !v)}
+          >
+            {showComparisonFilters ? "−" : "+"}
+          </button>
+        </div>
+        {showComparisonFilters && (
+          <div className="comparison-filters-row">
+            <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
             <button type="button" className="analyze-btn" onClick={openAnalysisTab}>
               Анализ
             </button>
           </div>
-        </div>
-        {showComparisonFilters && (
-          <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
         )}
         <ObjectComparisonTable data={objectComparison} />
       </section>

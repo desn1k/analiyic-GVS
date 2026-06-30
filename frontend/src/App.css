@@ -96,15 +96,16 @@ table.scheme-legend tr.sorted td { background: #e7f1fc; }
 
 .section-header-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .section-header-row h2 { margin: 0; }
-.section-header-actions { display: flex; align-items: center; gap: 8px; }
 .toggle-filters-btn {
   background: #fff; border: 1px solid #d0d5dd; border-radius: 6px;
   width: 30px; height: 30px; font-size: 17px; line-height: 1; cursor: pointer; color: #1971c2;
 }
 .toggle-filters-btn:hover { background: #f0f6fc; }
+.comparison-filters-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.comparison-filters-row .filters-bar { margin-bottom: 0; }
 .analyze-btn {
   background: #1971c2; color: #fff; border: none; border-radius: 6px;
-  padding: 7px 14px; font-size: 13px; cursor: pointer;
+  padding: 9px 16px; font-size: 13px; cursor: pointer; white-space: nowrap;
 }
 .analyze-btn:hover { background: #1864ab; }
 
