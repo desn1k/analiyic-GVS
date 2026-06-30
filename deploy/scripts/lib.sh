@@ -33,8 +33,12 @@ install_base_packages() {
   fi
 
   if ! command -v node >/dev/null 2>&1; then
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y nodejs
+    if curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; then
+      apt-get install -y nodejs
+    else
+      echo "==> NodeSource недоступен (нет DNS/сети), ставим Node.js из репозитория Ubuntu" >&2
+      apt-get install -y nodejs npm
+    fi
   fi
 }
 
