@@ -1,3 +1,5 @@
+import { formatPeriod } from "../utils/format";
+
 export default function WeeklySummaryTable({ data }) {
   if (!data?.length) {
     return <p className="empty-hint">Нет данных по неделям.</p>;
@@ -20,7 +22,7 @@ export default function WeeklySummaryTable({ data }) {
         <tbody>
           {data.map((p) => (
             <tr key={p.period_id}>
-              <td>{p.period_start} — {p.period_end}</td>
+              <td>{formatPeriod(p.period_start, p.period_end)}</td>
               <td>{p.objects_count}</td>
               <td>{p.objects_with_violation}</td>
               <td>{fmtNum(p.volume_total)}</td>

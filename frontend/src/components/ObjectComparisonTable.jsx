@@ -1,3 +1,5 @@
+import { formatPeriod } from "../utils/format";
+
 export default function ObjectComparisonTable({ data }) {
   if (!data?.periods?.length || !data?.objects?.length) {
     return <p className="empty-hint">Нет данных для сравнения по неделям.</p>;
@@ -20,7 +22,7 @@ export default function ObjectComparisonTable({ data }) {
             <th>Объект</th>
             <th>Тип объекта</th>
             {periods.map((p) => (
-              <th key={p.id}>{p.period_start} — {p.period_end}</th>
+              <th key={p.id}>{formatPeriod(p.period_start, p.period_end)}</th>
             ))}
           </tr>
         </thead>

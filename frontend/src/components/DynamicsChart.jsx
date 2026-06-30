@@ -2,6 +2,7 @@ import {
   ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis,
   Tooltip, Legend, CartesianGrid,
 } from "recharts";
+import { formatPeriod } from "../utils/format";
 
 export default function DynamicsChart({ data }) {
   if (!data?.length) {
@@ -9,7 +10,7 @@ export default function DynamicsChart({ data }) {
   }
 
   const chartData = data.map((d) => ({
-    period: `${fmt(d.period_start)} – ${fmt(d.period_end)}`,
+    period: formatPeriod(d.period_start, d.period_end),
     "% объёма с нарушением": d.violation_pct,
     "Средняя темп. ГВС, °C": d.avg_temp_gvs,
     "Объём, м³": d.volume_total,
@@ -30,9 +31,4 @@ export default function DynamicsChart({ data }) {
       </ComposedChart>
     </ResponsiveContainer>
   );
-}
-
-function fmt(d) {
-  const [y, m, day] = d.split("-");
-  return `${day}.${m}.${y.slice(2)}`;
 }

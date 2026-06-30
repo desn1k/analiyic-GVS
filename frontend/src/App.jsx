@@ -6,6 +6,7 @@ import TuTable from "./components/TuTable";
 import WeeklySummaryTable from "./components/WeeklySummaryTable";
 import ObjectComparisonTable from "./components/ObjectComparisonTable";
 import { getPeriods, getDynamics, getFilters, getTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
+import { formatPeriod } from "./utils/format";
 import "./App.css";
 
 const searchParams = new URLSearchParams(window.location.search);
@@ -132,7 +133,7 @@ export default function App() {
             <select value={selectedPeriod || ""} onChange={(e) => setSelectedPeriod(Number(e.target.value))}>
               {periods.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.period_start} — {p.period_end} ({p.tu_count} ТУ)
+                  {formatPeriod(p.period_start, p.period_end)} ({p.tu_count} ТУ)
                 </option>
               ))}
             </select>
