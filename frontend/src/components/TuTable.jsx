@@ -1,3 +1,5 @@
+import { getSchemeNote } from "../schemeInfo";
+
 const COLUMNS = [
   { key: "object_name", label: "Объект", wrap: true, width: 240 },
   { key: "source_name", label: "Источник", wrap: true, width: 200 },
@@ -41,7 +43,7 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
               <td className="wrap-cell" title={r.source_name}>{r.source_name || "—"}</td>
               <td>{r.tu_name}</td>
               <td className="wrap-cell">{r.object_type}</td>
-              <td>{r.scheme || "—"}</td>
+              <td title={r.scheme ? getSchemeNote(r.scheme) : undefined}>{r.scheme || "—"}</td>
               <td>{fmtNum(r.avg_temp_gvs)}</td>
               <td>{fmtNum(r.volume_total)}</td>
               <td className={r.violation_pct > 0 ? "violation" : ""}>{fmtNum(r.violation_pct)}%</td>

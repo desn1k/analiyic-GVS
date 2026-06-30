@@ -5,6 +5,7 @@ import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
 import WeeklySummaryTable from "./components/WeeklySummaryTable";
 import ObjectComparisonTable from "./components/ObjectComparisonTable";
+import SchemeLegend from "./components/SchemeLegend";
 import { getPeriods, getDynamics, getFilters, getTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
 import "./App.css";
 
@@ -93,6 +94,11 @@ export default function App() {
           )}
         </div>
         <FiltersBar filters={filters} value={filterValue} onChange={setFilterValue} />
+        <SchemeLegend
+          schemes={filters?.schemes}
+          value={filterValue.scheme}
+          onSelect={(scheme) => setFilterValue({ ...filterValue, scheme })}
+        />
         <TuTable rows={tuRows} sortBy={sortBy} order={order} onSort={handleSort} />
       </section>
     </div>

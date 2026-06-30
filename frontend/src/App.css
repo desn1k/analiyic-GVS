@@ -85,5 +85,11 @@ th.sorted { color: #1971c2; }
 tr.low-confidence td.sticky-col, tr.low-confidence td { background: #fff8e6; }
 td.violation { color: #d9480f; font-weight: 600; }
 
+table.scheme-legend { max-width: 900px; margin-bottom: 4px; }
+table.scheme-legend th:nth-child(1), table.scheme-legend td:nth-child(1) { width: 70px; }
+table.scheme-legend th:nth-child(2), table.scheme-legend td:nth-child(2) { width: 420px; }
+table.scheme-legend tr:hover td { background: #f0f6fc; }
+table.scheme-legend tr.sorted td { background: #e7f1fc; }
+
 .empty-hint { color: #888; font-size: 14px; }
 .footnote { font-size: 11px; color: #888; margin-top: 8px; }
