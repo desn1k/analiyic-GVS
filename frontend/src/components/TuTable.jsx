@@ -5,7 +5,7 @@ const COLUMNS = [
   { key: "source_name", label: "Источник", wrap: true, width: 200 },
   { key: "tu_name", label: "ТУ", width: 70 },
   { key: "object_type", label: "Тип объекта", wrap: true, width: 160 },
-  { key: "scheme", label: "Схема", width: 60 },
+  { key: "is_dead_end", label: "Тупиковая", width: 70 },
   { key: "avg_temp_gvs", label: "Сред. T, °C", width: 70 },
   { key: "volume_total", label: "Объём, м³", width: 80 },
   { key: "violation_pct", label: "% с нарушением", width: 90 },
@@ -78,7 +78,7 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
                 <td className="wrap-cell" title={r.source_name}>{r.source_name || "—"}</td>
                 <td>{r.tu_name}</td>
                 <td className="wrap-cell">{r.object_type}</td>
-                <td>{r.scheme || "—"}</td>
+                <td>{fmtDeadEnd(r.is_dead_end)}</td>
                 <td>{fmtNum(r.avg_temp_gvs)}</td>
                 <td>{fmtNum(r.volume_total)}</td>
                 <td className={r.violation_pct > 0 ? "violation" : ""}>{fmtNum(r.violation_pct)}%</td>
@@ -99,4 +99,12 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
 
 function fmtNum(v) {
   return v === null || v === undefined ? "—" : Number(v).toFixed(1);
+}
+
+function fmtDeadEnd(v) {
+  if (!v) return "—";
+  const s = String(v).trim().toLowerCase();
+  if (s === "да") return "Да";
+  if (s === "нет") return "Нет";
+  return v;
 }
