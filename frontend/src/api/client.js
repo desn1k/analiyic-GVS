@@ -37,4 +37,7 @@ export const getDeviceSummary = (tuUuid) =>
 export const getDeviceHourly = (tuUuid, params) =>
   api.get(`/api/device/points/${tuUuid}/hourly`, { params }).then((r) => r.data);
 
+export const getDeviceUpload = (id) =>
+  api.get(`/api/device/uploads/${id}`).then((r) => r.data);
+
 export default api;

@@ -59,3 +59,5 @@ class DeviceUploadOut(BaseModel):
     period_end: Optional[datetime] = None
     points_count: int = 0
     hours_count: int = 0
+    status: str = "done"
+    error: Optional[str] = None

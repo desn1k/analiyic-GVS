@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
-import { uploadReport } from "../api/client";
+import { uploadReport, getDeviceUpload } from "../api/client";
 import { formatPeriod } from "../utils/format";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default function UploadPanel({ onUploaded }) {
   const inputRef = useRef(null);
@@ -8,12 +10,23 @@ export default function UploadPanel({ onUploaded }) {
 
   const handleFile = async (file) => {
     if (!file) return;
-    setStatus("Загрузка... (большие приборные файлы могут парситься несколько минут)");
+    setStatus("Загрузка файла на сервер...");
     try {
       const res = await uploadReport(file);
       if (res.kind === "device") {
-        const d = res.device;
-        setStatus(`Загружены приборные данные: ${d.points_count} точек учёта, ${d.hours_count} часов`);
+        // Приборный файл разбирается в фоне — опрашиваем статус.
+        setStatus("Файл загружен. Идёт разбор приборных данных...");
+        let up = res.device;
+        while (up.status === "processing") {
+          await sleep(3000);
+          up = await getDeviceUpload(up.id);
+          setStatus(`Разбор приборных данных... ${up.points_count} точек, ${up.hours_count} часов`);
+        }
+        if (up.status === "error") {
+          setStatus(`Ошибка разбора: ${up.error || "неизвестная ошибка"}`);
+          return;
+        }
+        setStatus(`Готово: ${up.points_count} точек учёта, ${up.hours_count} часов`);
         onUploaded?.();
         window.location.reload();
       } else {

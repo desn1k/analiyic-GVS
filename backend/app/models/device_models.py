@@ -20,6 +20,8 @@ class DeviceUpload(DeviceBase):
     period_end = Column(DateTime, nullable=True)
     points_count = Column(Integer, default=0)
     hours_count = Column(BigInteger, default=0)
+    status = Column(String, default="processing")  # processing | done | error
+    error = Column(String, nullable=True)
 
 
 class DevicePoint(DeviceBase):

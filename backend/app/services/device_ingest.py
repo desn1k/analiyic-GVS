@@ -91,16 +91,19 @@ def _strip_prefix(s: str, prefix: str) -> str:
     return s[len(prefix):].strip() if s.startswith(prefix) else s.strip()
 
 
-def ingest_device_report(db: Session, file_obj, filename: str) -> DeviceUpload:
-    """Разбирает файл потоково и складывает сырые часы в device.db."""
-    file_obj.seek(0)
-    wb = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
+def ingest_device_report(db: Session, source, upload_id: int) -> DeviceUpload:
+    """Разбирает файл потоково и складывает сырые часы в device.db.
+
+    source — путь к файлу или файловый объект. upload_id — заранее созданная
+    строка DeviceUpload (в фоне обновляем её прогресс и статус).
+    Коммитим порциями, чтобы память/размер транзакции не зависели от файла.
+    """
+    if hasattr(source, "seek"):
+        source.seek(0)
+    wb = openpyxl.load_workbook(source, read_only=True, data_only=True)
     ws = wb[wb.sheetnames[0]]
 
-    upload = DeviceUpload(source_filename=filename)
-    db.add(upload)
-    db.flush()  # получаем upload.id
-    upload_id = upload.id
+    upload = db.query(DeviceUpload).get(upload_id)
 
     cur_object = None
     cur_device = None
@@ -117,11 +120,21 @@ def ingest_device_report(db: Session, file_obj, filename: str) -> DeviceUpload:
     max_ts: Optional[datetime] = None
     param_items = list(PARAM_COLS.items())
 
-    def flush_batch():
-        nonlocal batch
+    flushes_since_commit = 0
+
+    def flush_batch(final=False):
+        nonlocal batch, flushes_since_commit
         if batch:
             db.bulk_insert_mappings(DeviceHourly, batch)
             batch = []
+            flushes_since_commit += 1
+        # Коммитим каждые ~20 пачек (≈100k строк) и обновляем прогресс,
+        # чтобы транзакция и WAL не разрастались на огромных файлах.
+        if final or flushes_since_commit >= 20:
+            upload.hours_count = hours_count
+            upload.points_count = len(points)
+            db.commit()
+            flushes_since_commit = 0
 
     for row in ws.iter_rows(values_only=True):
         a = row[0]
@@ -198,7 +211,7 @@ def ingest_device_report(db: Session, file_obj, filename: str) -> DeviceUpload:
         if len(batch) >= BATCH_SIZE:
             flush_batch()
 
-    flush_batch()
+    flush_batch(final=True)
     wb.close()
 
     # upsert точек учёта (мета)
@@ -217,5 +230,29 @@ def ingest_device_report(db: Session, file_obj, filename: str) -> DeviceUpload:
     upload.period_end = max_ts
     upload.points_count = len(points)
     upload.hours_count = hours_count
+    upload.status = "done"
     db.commit()
     return upload
+
+
+def run_device_ingest_background(path: str, upload_id: int):
+    """Фоновый разбор: своя сессia БД, удаляет временный файл, ловит ошибки."""
+    import os
+    from app.device_database import DeviceSessionLocal
+
+    db = DeviceSessionLocal()
+    try:
+        ingest_device_report(db, path, upload_id)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        up = db.query(DeviceUpload).get(upload_id)
+        if up is not None:
+            up.status = "error"
+            up.error = str(e)[:500]
+            db.commit()
+    finally:
+        db.close()
+        try:
+            os.remove(path)
+        except OSError:
+            pass

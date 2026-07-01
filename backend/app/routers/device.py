@@ -83,3 +83,11 @@ def point_hourly(
 @router.get("/uploads", response_model=list[DeviceUploadOut])
 def list_uploads(db: Session = Depends(get_device_db)):
     return db.query(DeviceUpload).order_by(DeviceUpload.uploaded_at.desc()).all()
+
+
+@router.get("/uploads/{upload_id}", response_model=DeviceUploadOut)
+def get_upload(upload_id: int, db: Session = Depends(get_device_db)):
+    up = db.query(DeviceUpload).get(upload_id)
+    if up is None:
+        raise HTTPException(404, "Загрузка не найдена")
+    return up

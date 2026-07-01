@@ -10,6 +10,24 @@ from app.routers import reports, analytics, device
 Base.metadata.create_all(bind=engine)
 DeviceBase.metadata.create_all(bind=device_engine)
 
+
+def _ensure_device_columns():
+    """Лёгкая миграция: добавляем недостающие столбцы в существующую device.db."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(device_engine)
+    if "device_uploads" not in insp.get_table_names():
+        return
+    existing = {c["name"] for c in insp.get_columns("device_uploads")}
+    with device_engine.begin() as conn:
+        if "status" not in existing:
+            conn.execute(text("ALTER TABLE device_uploads ADD COLUMN status VARCHAR DEFAULT 'done'"))
+        if "error" not in existing:
+            conn.execute(text("ALTER TABLE device_uploads ADD COLUMN error VARCHAR"))
+
+
+_ensure_device_columns()
+
 app = FastAPI(title="ГВС Аналитика")
 
 # In production the frontend is served by nginx on the same origin and
