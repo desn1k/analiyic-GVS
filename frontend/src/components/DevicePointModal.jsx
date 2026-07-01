@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
+  ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ReferenceArea,
 } from "recharts";
 import { getDeviceSummary, getDeviceHourly } from "../api/client";
@@ -46,7 +46,9 @@ export default function DevicePointModal({ row, onClose }) {
     ts: fmtTs(h.ts),
     "T подачи (t1)": h.valid ? h.t1 : null,
     "T обратки (t2)": h.valid ? h.t2 : null,
+    "Объём (M1), т": h.valid ? h.m1 : null,
   }));
+  const hasVolume = chartData.some((d) => d["Объём (M1), т"] > 0);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -84,18 +86,27 @@ export default function DevicePointModal({ row, onClose }) {
 
               <div style={{ marginTop: 16 }}>
                 <ResponsiveContainer width="100%" height={360}>
-                  <LineChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" />
-                    <ReferenceArea y1={60} y2={75} fill="#16a34a" fillOpacity={0.06} />
+                    <ReferenceArea yAxisId="temp" y1={60} y2={75} fill="#16a34a" fillOpacity={0.06} />
                     <XAxis dataKey="ts" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={40} />
-                    <YAxis tick={{ fontSize: 11 }} domain={["auto", "auto"]} unit="°" />
+                    <YAxis yAxisId="temp" tick={{ fontSize: 11 }} domain={["auto", "auto"]} unit="°" />
+                    {hasVolume && (
+                      <YAxis yAxisId="vol" orientation="right" tick={{ fontSize: 11 }} domain={[0, "auto"]} />
+                    )}
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="T подачи (t1)" stroke="#dc2626" dot={false} strokeWidth={2} connectNulls />
-                    <Line type="monotone" dataKey="T обратки (t2)" stroke="#2563eb" dot={false} strokeWidth={1.5} connectNulls />
-                  </LineChart>
+                    {hasVolume && (
+                      <Bar yAxisId="vol" dataKey="Объём (M1), т" fill="#93c5fd" barSize={6} />
+                    )}
+                    <Line yAxisId="temp" type="monotone" dataKey="T подачи (t1)" stroke="#dc2626" dot={false} strokeWidth={2} connectNulls />
+                    <Line yAxisId="temp" type="monotone" dataKey="T обратки (t2)" stroke="#2563eb" dot={false} strokeWidth={1.5} connectNulls />
+                  </ComposedChart>
                 </ResponsiveContainer>
-                <p className="footnote">Зелёная зона — норматив подачи ГВС 60–75 °C. Разрывы линии — недостоверные часы.</p>
+                <p className="footnote">
+                  Зелёная зона — норматив подачи ГВС 60–75 °C (левая ось). Синие столбцы — объём M1, т (правая ось).
+                  Разрывы линии — недостоверные часы.
+                </p>
               </div>
             </>
           )}

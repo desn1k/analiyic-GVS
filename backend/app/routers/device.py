@@ -1,10 +1,10 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, case
+from sqlalchemy import func, case, text
 from sqlalchemy.orm import Session
 
-from app.device_database import get_device_db
+from app.device_database import get_device_db, device_engine
 from app.models import DevicePoint, DeviceHourly, DeviceUpload
 from app.schemas.device_schemas import (
     DevicePointOut, DeviceHourlyOut, DevicePointSummary, DeviceUploadOut,
@@ -91,3 +91,17 @@ def get_upload(upload_id: int, db: Session = Depends(get_device_db)):
     if up is None:
         raise HTTPException(404, "Загрузка не найдена")
     return up
+
+
+@router.delete("/data")
+def clear_device_data(db: Session = Depends(get_device_db)):
+    """Полностью очистить приборные данные (часы, точки, загрузки)."""
+    hours = db.query(DeviceHourly).delete()
+    db.query(DevicePoint).delete()
+    db.query(DeviceUpload).delete()
+    db.commit()
+    # Освобождаем место на диске после массового удаления.
+    # VACUUM нельзя запускать внутри транзакции — отдельное autocommit-соединение.
+    with device_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        conn.execute(text("VACUUM"))
+    return {"status": "ok", "deleted_hours": hours}
