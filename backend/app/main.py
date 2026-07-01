@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.device_database import DeviceBase, device_engine
-from app.routers import reports, analytics, device
+from app.routers import reports, analytics, device, dashboard
 
 Base.metadata.create_all(bind=engine)
 DeviceBase.metadata.create_all(bind=device_engine)
@@ -47,6 +47,7 @@ app.add_middleware(
 app.include_router(reports.router)
 app.include_router(analytics.router)
 app.include_router(device.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/api/health")

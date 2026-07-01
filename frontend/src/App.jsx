@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import UploadPanel from "./components/UploadPanel";
+import DashboardModal from "./components/DashboardModal";
 import DynamicsChart from "./components/DynamicsChart";
 import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
@@ -28,6 +29,7 @@ export default function App() {
   const [objectComparison, setObjectComparison] = useState(null);
   const [comparisonFilterValue, setComparisonFilterValue] = useState(initialComparisonFilters);
   const [showComparisonFilters, setShowComparisonFilters] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
 
   const reload = useCallback(async () => {
     const ps = await getPeriods();
@@ -88,8 +90,15 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Аналитика качества ГВС</h1>
-        <UploadPanel onUploaded={reload} />
+        <div className="header-actions">
+          <button type="button" className="dashboard-btn" onClick={() => setShowDashboard(true)}>
+            📊 Дашборд
+          </button>
+          <UploadPanel onUploaded={reload} />
+        </div>
       </header>
+
+      {showDashboard && <DashboardModal onClose={() => setShowDashboard(false)} />}
 
       <section className="card">
         <h2>Динамика во времени</h2>

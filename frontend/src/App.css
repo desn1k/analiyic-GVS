@@ -248,3 +248,22 @@ td.violation { color: var(--danger); font-weight: 600; }
 .device-stat-value { font-size: 16px; font-weight: 600; }
 .device-stat-value.danger { color: var(--danger); }
 .device-stat-value.ok { color: #16a34a; }
+
+.header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dashboard-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 16px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--text);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.dashboard-btn:hover { background: #eef3fe; border-color: var(--primary); }
+
+.dash-section { font-size: 13px; font-weight: 600; color: var(--text-muted); margin: 22px 0 12px;
+  text-transform: uppercase; letter-spacing: 0.03em; }
+.dash-section:first-child { margin-top: 0; }
+.dash-actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+.danger-btn {
+  background: var(--danger); color: #fff; border: none; border-radius: var(--radius-sm);
+  padding: 9px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.danger-btn:hover:not(:disabled) { background: #b91c1c; }
+.danger-btn:disabled { opacity: 0.5; cursor: not-allowed; }
