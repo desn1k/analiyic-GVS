@@ -1,4 +1,7 @@
 backend/gvs.db
+backend/device.db
+backend/device.db-wal
+backend/device.db-shm
 backend/.env
 backend/venv/
 backend/__pycache__/

@@ -8,12 +8,20 @@ export default function UploadPanel({ onUploaded }) {
 
   const handleFile = async (file) => {
     if (!file) return;
-    setStatus("Загрузка...");
+    setStatus("Загрузка... (большие приборные файлы могут парситься несколько минут)");
     try {
-      const period = await uploadReport(file);
-      setStatus(`Загружено: ${formatPeriod(period.period_start, period.period_end)} (${period.tu_count} ТУ)`);
-      onUploaded?.();
-      window.location.reload();
+      const res = await uploadReport(file);
+      if (res.kind === "device") {
+        const d = res.device;
+        setStatus(`Загружены приборные данные: ${d.points_count} точек учёта, ${d.hours_count} часов`);
+        onUploaded?.();
+        window.location.reload();
+      } else {
+        const period = res.report;
+        setStatus(`Загружено: ${formatPeriod(period.period_start, period.period_end)} (${period.tu_count} ТУ)`);
+        onUploaded?.();
+        window.location.reload();
+      }
     } catch (e) {
       setStatus(`Ошибка: ${e.response?.data?.detail || e.message}`);
     }

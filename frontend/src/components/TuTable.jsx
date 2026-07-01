@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DevicePointModal from "./DevicePointModal";
 
 const COLUMNS = [
   { key: "object_name", label: "Объект", wrap: true, width: "14%" },
@@ -20,6 +21,7 @@ const PAGE_SIZES = [25, 50, 100, 250];
 export default function TuTable({ rows, sortBy, order, onSort }) {
   const [pageSize, setPageSize] = useState(25);
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => { setPage(1); }, [rows]);
 
@@ -75,7 +77,11 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
           <tbody>
             {pageRows.map((r) => (
               <tr key={r.id} className={r.data_quality_pct < 52 ? "low-confidence" : ""}>
-                <td className="wrap-cell sticky-col" title={r.object_name}>{r.object_name}</td>
+                <td className="wrap-cell sticky-col" title="Показать приборные данные">
+                  <button type="button" className="link-cell" onClick={() => setSelected(r)}>
+                    {r.object_name}
+                  </button>
+                </td>
                 <td className="wrap-cell" title={r.source_name}>{r.source_name || "—"}</td>
                 <td className="wrap-cell">{r.object_type}</td>
                 <td>{fmtDeadEnd(r.is_dead_end)}</td>
@@ -94,7 +100,9 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
       </div>
       <p className="footnote">
         Строки с подсветкой: достоверных данных менее 52% от общего числа архивных записей за период.
+        Нажмите на название объекта, чтобы увидеть почасовые данные с прибора учёта.
       </p>
+      {selected && <DevicePointModal row={selected} onClose={() => setSelected(null)} />}
     </div>
   );
 }

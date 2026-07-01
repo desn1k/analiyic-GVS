@@ -30,4 +30,11 @@ export const getWeeklySummary = (params) =>
 export const getObjectComparison = (params) =>
   api.get("/api/analytics/object-comparison", { params }).then((r) => r.data);
 
+// Приборные (почасовые) данные — отдельная БД
+export const getDeviceSummary = (tuUuid) =>
+  api.get(`/api/device/points/${tuUuid}/summary`).then((r) => r.data);
+
+export const getDeviceHourly = (tuUuid, params) =>
+  api.get(`/api/device/points/${tuUuid}/hourly`, { params }).then((r) => r.data);
+
 export default api;
