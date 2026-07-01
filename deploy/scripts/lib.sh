@@ -133,7 +133,10 @@ server {
 
     root $SRC_DIR/frontend/dist;
     index index.html;
-    client_max_body_size 25m;
+
+    # Почасовые приборные файлы могут достигать ~1.5 ГБ.
+    client_max_body_size 2g;
+    client_body_timeout 3600s;
 
     location /api/ {
         proxy_pass http://127.0.0.1:8000;
@@ -141,6 +144,11 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # Разбор большого файла занимает минуты — не рвём соединение по таймауту.
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
     }
 
     location / {
