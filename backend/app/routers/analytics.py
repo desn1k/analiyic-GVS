@@ -37,7 +37,7 @@ def _violation_volume(row: TuReportRow) -> float:
 
 
 def _cap_pct(pct: float) -> float:
-    return min(pct, 100.0)
+    return min(max(pct, 0.0), 100.0)
 
 
 def _data_quality_pct(row: TuReportRow) -> float:

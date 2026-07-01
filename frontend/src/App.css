@@ -122,6 +122,12 @@ th, td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--
 td.wrap-cell { white-space: normal; }
 td.sticky-col, th:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; text-align: center; }
 th:first-child { background: #f8f9fc; z-index: 2; }
+
+/* Закрепление первых двух столбцов (Объект + Тип объекта) в сравнении по неделям */
+td.sticky-col-1, th.sticky-col-1 { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+td.sticky-col-2, th.sticky-col-2 { position: sticky; left: 240px; background: var(--surface); z-index: 1; box-shadow: 1px 0 0 var(--border); }
+th.sticky-col-1, th.sticky-col-2 { background: #f8f9fc; z-index: 3; }
+tr:hover td.sticky-col-1, tr:hover td.sticky-col-2 { background: #f8fafc; }
 th {
   cursor: pointer; user-select: none; background: #f8f9fc; position: sticky; top: 0;
   white-space: normal; font-weight: 600; color: var(--text-muted); font-size: 11.5px;
