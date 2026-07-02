@@ -6,8 +6,7 @@ import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
 import WeeklySummaryTable from "./components/WeeklySummaryTable";
 import ObjectComparisonTable from "./components/ObjectComparisonTable";
-import { getPeriods, getDynamics, getFilters, getTuRows, getAllTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
-import { formatPeriod } from "./utils/format";
+import { getPeriods, getDynamics, getFilters, getAllTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
 import "./App.css";
 
 const searchParams = new URLSearchParams(window.location.search);
@@ -18,7 +17,6 @@ const initialComparisonFilters = Object.fromEntries(
 
 export default function App() {
   const [periods, setPeriods] = useState([]);
-  const [selectedPeriod, setSelectedPeriod] = useState(null);
   const [dynamics, setDynamics] = useState([]);
   const [filters, setFilters] = useState(null);
   const [filterValue, setFilterValue] = useState({});
@@ -34,28 +32,18 @@ export default function App() {
   const reload = useCallback(async () => {
     const ps = await getPeriods();
     setPeriods(ps);
-    if (ps.length) setSelectedPeriod((prev) => prev || "all");
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
-    if (!selectedPeriod) return;
-    // Для «всех периодов» опции фильтров берём из самого свежего периода.
-    const pid = selectedPeriod === "all"
-      ? (periods.length ? periods[periods.length - 1].id : null)
-      : selectedPeriod;
-    if (pid) getFilters(pid).then(setFilters);
-  }, [selectedPeriod, periods]);
+    // Опции фильтров берём из самого свежего периода (списки одинаковы по базе).
+    if (periods.length) getFilters(periods[periods.length - 1].id).then(setFilters);
+  }, [periods]);
 
   useEffect(() => {
-    const params = { ...filterValue, sort_by: sortBy, order };
-    if (selectedPeriod === "all") {
-      getAllTuRows(params).then(setTuRows);
-    } else if (selectedPeriod) {
-      getTuRows(selectedPeriod, params).then(setTuRows);
-    }
-  }, [selectedPeriod, filterValue, sortBy, order]);
+    getAllTuRows({ ...filterValue, sort_by: sortBy, order }).then(setTuRows);
+  }, [filterValue, sortBy, order]);
 
   useEffect(() => {
     getDynamics(filterValue).then(setDynamics);
@@ -145,23 +133,7 @@ export default function App() {
 
       <section className="card">
         <div className="period-select-row">
-          <h2>Точки учёта</h2>
-          {periods.length > 0 && (
-            <select
-              value={selectedPeriod || ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                setSelectedPeriod(v === "all" ? "all" : Number(v));
-              }}
-            >
-              <option value="all">Все периоды (вся база)</option>
-              {periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {formatPeriod(p.period_start, p.period_end)} ({p.tu_count} ТУ)
-                </option>
-              ))}
-            </select>
-          )}
+          <h2>Точки учёта <span className="muted-note">— вся база</span></h2>
         </div>
         <FiltersBar filters={filters} value={filterValue} onChange={setFilterValue} showOutage />
         <TuTable rows={tuRows} sortBy={sortBy} order={order} onSort={handleSort} />

@@ -120,7 +120,7 @@ export default function DevicePointModal({ row, onClose }) {
                 <ResponsiveContainer width="100%" height={360}>
                   <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" />
-                    <ReferenceArea yAxisId="temp" y1={60} y2={75} fill="#16a34a" fillOpacity={0.06} />
+                    <ReferenceArea yAxisId="temp" y1={60} y2={75} fill="#16a34a" fillOpacity={0.08} ifOverflow="extendDomain" />
                     {outageBands.map((b) => (
                       <ReferenceArea
                         key={b.key}
@@ -131,6 +131,7 @@ export default function DevicePointModal({ row, onClose }) {
                         fillOpacity={0.14}
                         stroke={IMPACT_COLOR[b.impact] || IMPACT_COLOR["иное"]}
                         strokeOpacity={0.4}
+                        ifOverflow="extendDomain"
                       />
                     ))}
                     <XAxis dataKey="ts" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={40} />
