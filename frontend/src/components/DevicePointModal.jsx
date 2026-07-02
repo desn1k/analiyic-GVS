@@ -22,6 +22,29 @@ function fmtTs(ts) {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:00`;
 }
 
+// Вертикальная подпись внутри зоны отключения: причина + период.
+function OutageLabel({ text, color, viewBox }) {
+  if (!viewBox) return null;
+  const { x, y, width, height } = viewBox;
+  const cx = x + width / 2;
+  const cy = y + height - 6;
+  const maxChars = Math.max(6, Math.floor((height - 12) / 6.2));
+  const shown = text.length > maxChars ? text.slice(0, maxChars - 1) + "…" : text;
+  return (
+    <text
+      x={cx}
+      y={cy}
+      fill={color}
+      fontSize={10}
+      fontWeight={600}
+      textAnchor="start"
+      transform={`rotate(-90, ${cx}, ${cy})`}
+    >
+      {shown}
+    </text>
+  );
+}
+
 function fmtNum(v) {
   return v === null || v === undefined ? "—" : Number(v).toFixed(1);
 }
@@ -83,7 +106,9 @@ export default function DevicePointModal({ row, onClose }) {
     let i2 = end === null ? times.length - 1 : times.reduce((acc, t, i) => (t <= end ? i : acc), -1);
     if (i2 < 0) return null;                          // отключение раньше данных
     if (i2 < i1) i2 = i1;
-    return { key: idx, x1: chartData[i1].ts, x2: chartData[i2].ts, impact: o.impact, reason: o.reason };
+    const period = `${fmtDT(o.start_fact)} — ${fmtDT(o.end_fact)}`;
+    const label = `${o.reason || o.impact || "отключение"} · ${period}`;
+    return { key: idx, x1: chartData[i1].ts, x2: chartData[i2].ts, impact: o.impact, label };
   }).filter(Boolean);
 
   return (
@@ -153,6 +178,7 @@ export default function DevicePointModal({ row, onClose }) {
                         stroke={IMPACT_COLOR[b.impact] || IMPACT_COLOR["иное"]}
                         strokeOpacity={0.4}
                         ifOverflow="extendDomain"
+                        label={<OutageLabel text={b.label} color={IMPACT_COLOR[b.impact] || IMPACT_COLOR["иное"]} />}
                       />
                     ))}
                     <XAxis dataKey="ts" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={40} />
