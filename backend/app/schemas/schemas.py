@@ -43,6 +43,8 @@ class TuRowOut(BaseModel):
     violation_pct: float = 0.0
     data_quality_pct: float = 0.0
     probable_cause: str = ""
+    has_outage: bool = False
+    outage_impacts: str = ""
 
 
 class DynamicsPoint(BaseModel):

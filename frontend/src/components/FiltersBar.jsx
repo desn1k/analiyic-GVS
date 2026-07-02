@@ -4,7 +4,14 @@ const DATA_QUALITY_PRESETS = [
   { value: "unreliable", label: "Недостоверные (<52%)" },
 ];
 
-export default function FiltersBar({ filters, value, onChange }) {
+const OUTAGE_PRESETS = [
+  { value: "", label: "Отключения: все" },
+  { value: "any", label: "Есть отключения" },
+  { value: "прекращение", label: "Прекращение" },
+  { value: "ограничение", label: "Ограничение" },
+];
+
+export default function FiltersBar({ filters, value, onChange, showOutage }) {
   if (!filters) return null;
 
   const set = (key) => (e) => onChange({ ...value, [key]: e.target.value || undefined });
@@ -50,6 +57,13 @@ export default function FiltersBar({ filters, value, onChange }) {
           <option key={p.value} value={p.value}>{p.label}</option>
         ))}
       </select>
+      {showOutage && (
+        <select value={value.outage || ""} onChange={set("outage")}>
+          {OUTAGE_PRESETS.map((p) => (
+            <option key={p.value} value={p.value}>{p.label}</option>
+          ))}
+        </select>
+      )}
       <input
         type="text"
         placeholder="Поиск по объекту..."

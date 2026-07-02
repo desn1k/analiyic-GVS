@@ -24,6 +24,9 @@ export const getFilters = (periodId) =>
 export const getTuRows = (periodId, params) =>
   api.get(`/api/analytics/periods/${periodId}/tu`, { params }).then((r) => r.data);
 
+export const getAllTuRows = (params) =>
+  api.get("/api/analytics/tu", { params }).then((r) => r.data);
+
 export const getWeeklySummary = (params) =>
   api.get("/api/analytics/weekly-summary", { params }).then((r) => r.data);
 

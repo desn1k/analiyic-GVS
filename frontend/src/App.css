@@ -276,3 +276,4 @@ td.violation { color: var(--danger); font-weight: 600; }
   white-space: nowrap; margin-top: 2px;
 }
 .outage-text { font-size: 13px; }
+.outage-tag { color: var(--danger); font-weight: 600; font-size: 11px; }

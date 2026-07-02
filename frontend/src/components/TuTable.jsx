@@ -13,7 +13,8 @@ const COLUMNS = [
   { key: "hours_violation_low", label: "Часов занижение", width: "6%" },
   { key: "hours_violation_high", label: "Часов завышение", width: "6%" },
   { key: "data_quality_pct", label: "Достоверность, %", width: "7%" },
-  { key: "probable_cause", label: "Вероятная причина", wrap: true, width: "18%" },
+  { key: "outage_impacts", label: "Отключения", wrap: true, width: "9%" },
+  { key: "probable_cause", label: "Вероятная причина", wrap: true, width: "13%" },
 ];
 
 const PAGE_SIZES = [25, 50, 100, 250];
@@ -92,6 +93,11 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
                 <td>{r.hours_violation_low ?? 0}</td>
                 <td>{r.hours_violation_high ?? 0}</td>
                 <td>{fmtNum(r.data_quality_pct)}%</td>
+                <td className="wrap-cell">
+                  {r.has_outage
+                    ? <span className="outage-tag" title={r.outage_impacts}>{r.outage_impacts}</span>
+                    : "—"}
+                </td>
                 <td className="wrap-cell" title={r.probable_cause}>{r.probable_cause || "—"}</td>
               </tr>
             ))}

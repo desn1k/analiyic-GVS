@@ -4,11 +4,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ReportPeriod, TuReportRow
+from app.device_database import get_device_db
+from app.models import ReportPeriod, TuReportRow, Outage
 from app.schemas.schemas import (
     TuRowOut, DynamicsPoint, FilterOptions, WeeklySummary,
     ObjectComparisonOut, ObjectComparisonRow, ObjectPeriodMetric, PeriodOut,
 )
+from app.services.address import normalize_address, is_matchable_address
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -101,6 +103,36 @@ def _to_out(row: TuReportRow) -> TuRowOut:
     return out
 
 
+def _outage_map(device_db: Session) -> dict[str, set]:
+    """Карта нормализованный_адрес -> множество типов отключений (только ГВС)."""
+    result: dict[str, set] = {}
+    q = device_db.query(Outage.address_norm, Outage.impact).filter(
+        Outage.service_gvs == True  # noqa: E712
+    )
+    for addr, impact in q:
+        if not addr:
+            continue
+        result.setdefault(addr, set()).add(impact or "иное")
+    return result
+
+
+def _tag_outages(rows: list[TuRowOut], omap: dict[str, set]) -> None:
+    for r in rows:
+        addr = normalize_address(r.object_name)
+        if not is_matchable_address(addr):
+            continue
+        impacts = omap.get(addr)
+        if impacts:
+            r.has_outage = True
+            r.outage_impacts = ", ".join(sorted(impacts))
+
+
+def _filter_by_outage(rows: list[TuRowOut], outage: str) -> list[TuRowOut]:
+    if outage == "any":
+        return [r for r in rows if r.has_outage]
+    return [r for r in rows if outage in (r.outage_impacts or "").split(", ")]
+
+
 @router.get("/periods/{period_id}/tu", response_model=list[TuRowOut])
 def list_tu_rows(
     period_id: int,
@@ -112,15 +144,18 @@ def list_tu_rows(
     min_violation_pct: Optional[float] = None,
     min_data_quality_pct: Optional[float] = None,
     max_data_quality_pct: Optional[float] = None,
+    outage: Optional[str] = Query(None, pattern="^(any|прекращение|ограничение|иное)$"),
     sort_by: str = Query("violation_pct", pattern="^(violation_pct|volume_total|avg_temp_gvs|data_quality_pct)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = 2000,
     db: Session = Depends(get_db),
+    device_db: Session = Depends(get_device_db),
 ):
     q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
     q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
     db_rows = _filter_by_search(q.all(), search)
     rows = [_to_out(r) for r in db_rows]
+    _tag_outages(rows, _outage_map(device_db))
 
     if min_violation_pct is not None:
         rows = [r for r in rows if r.violation_pct >= min_violation_pct]
@@ -128,6 +163,55 @@ def list_tu_rows(
         rows = [r for r in rows if r.data_quality_pct >= min_data_quality_pct]
     if max_data_quality_pct is not None:
         rows = [r for r in rows if r.data_quality_pct <= max_data_quality_pct]
+    if outage:
+        rows = _filter_by_outage(rows, outage)
+
+    rows.sort(key=lambda r: getattr(r, sort_by) or 0, reverse=(order == "desc"))
+    return rows[:limit]
+
+
+@router.get("/tu", response_model=list[TuRowOut])
+def list_all_tu_rows(
+    object_type: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
+    system_type: Optional[str] = None,
+    source_name: Optional[str] = None,
+    search: Optional[str] = None,
+    min_violation_pct: Optional[float] = None,
+    min_data_quality_pct: Optional[float] = None,
+    max_data_quality_pct: Optional[float] = None,
+    outage: Optional[str] = Query(None, pattern="^(any|прекращение|ограничение|иное)$"),
+    sort_by: str = Query("violation_pct", pattern="^(violation_pct|volume_total|avg_temp_gvs|data_quality_pct)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    limit: int = 5000,
+    db: Session = Depends(get_db),
+    device_db: Session = Depends(get_device_db),
+):
+    """Все точки учёта из базы (без привязки к периоду).
+
+    Одна строка на ТУ — берётся запись из самого свежего периода.
+    """
+    q = db.query(TuReportRow).join(ReportPeriod).order_by(ReportPeriod.period_start)
+    q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
+    db_rows = _filter_by_search(q.all(), search)
+
+    # Дедуп по ТУ: более поздний период перезаписывает ранний.
+    by_tu: dict = {}
+    for r in db_rows:
+        by_tu[r.tu_id or f"id{r.id}"] = r
+    db_rows = list(by_tu.values())
+
+    rows = [_to_out(r) for r in db_rows]
+    _tag_outages(rows, _outage_map(device_db))
+
+    if min_violation_pct is not None:
+        rows = [r for r in rows if r.violation_pct >= min_violation_pct]
+    if min_data_quality_pct is not None:
+        rows = [r for r in rows if r.data_quality_pct >= min_data_quality_pct]
+    if max_data_quality_pct is not None:
+        rows = [r for r in rows if r.data_quality_pct <= max_data_quality_pct]
+    if outage:
+        rows = _filter_by_outage(rows, outage)
 
     rows.sort(key=lambda r: getattr(r, sort_by) or 0, reverse=(order == "desc"))
     return rows[:limit]
