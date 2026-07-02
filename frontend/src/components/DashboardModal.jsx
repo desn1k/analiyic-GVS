@@ -65,6 +65,13 @@ export default function DashboardModal({ onClose }) {
                 <Stat label="Точек без данных" value={num(d.points_without_valid)} danger={d.points_without_valid > 0} />
                 <Stat label="Отключений ГВС" value={num(d.outages_gvs)} />
                 <Stat label="Паспортов (реестр)" value={num(d.registry_total)} />
+                {d.hierarchy_total > 0 && (
+                  <Stat
+                    label="Точек иерархии без данных"
+                    value={`${num(d.hierarchy_no_data_count)} из ${num(d.hierarchy_total)}`}
+                    danger={d.hierarchy_no_data_count > 0}
+                  />
+                )}
                 <Stat label="Диапазон" value={d.ts_min ? `${fmtDateTime(d.ts_min)} — ${fmtDateTime(d.ts_max)}` : "—"} />
               </div>
 
@@ -81,6 +88,33 @@ export default function DashboardModal({ onClose }) {
                   points={d.points_partial}
                   kind="partial"
                 />
+              )}
+              {d.hierarchy_no_data?.length > 0 && (
+                <>
+                  <h4 className="dash-section">
+                    Точки иерархии без приборных данных ({d.hierarchy_no_data_count})
+                  </h4>
+                  <div className="table-wrap" style={{ maxHeight: 240 }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: "left" }}>Точка</th>
+                          <th style={{ textAlign: "left" }}>Роль в иерархии</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {d.hierarchy_no_data.map((n) => (
+                          <tr key={n.tu_id}>
+                            <td className="wrap-cell" style={{ textAlign: "left" }} title={n.tu_id}>
+                              {n.name || n.tu_id}
+                            </td>
+                            <td style={{ textAlign: "left" }}>{n.role}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
 
               {d.uploads?.length > 0 && (

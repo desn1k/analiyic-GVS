@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
@@ -6,7 +8,7 @@ from app.database import get_db
 from app.device_database import get_device_db
 from app.models import (
     ReportPeriod, TuReportRow, DeviceUpload, DevicePoint, DeviceHourly, Outage,
-    ObjectRegistry,
+    ObjectRegistry, Hierarchy,
 )
 from app.schemas.device_schemas import DeviceUploadOut
 
@@ -81,6 +83,32 @@ def get_dashboard(db: Session = Depends(get_db), ddb: Session = Depends(get_devi
 
     registry_total = ddb.query(func.count(ObjectRegistry.id)).scalar() or 0
     outages_total = ddb.query(func.count(Outage.id)).scalar() or 0
+
+    # --- Точки по иерархии: у кого нет приборных данных ---
+    reg_names = {r.object_id: r.name for r in ddb.query(ObjectRegistry.object_id, ObjectRegistry.name).all()}
+    dev_names = {p.tu_uuid: p.object_name for p in ddb.query(DevicePoint.tu_uuid, DevicePoint.object_name).all()}
+    hier_nodes: dict[str, dict] = {}
+    for h in ddb.query(Hierarchy).all():
+        if h.consumer_tu_id not in hier_nodes:
+            hier_nodes[h.consumer_tu_id] = {
+                "tu_id": h.consumer_tu_id,
+                "name": reg_names.get(h.object_id) or dev_names.get(h.consumer_tu_id),
+                "role": "потребитель",
+            }
+        for n in json.loads(h.chain or "[]"):
+            tid = n.get("tu_id")
+            if tid and tid not in hier_nodes:
+                role = "источник" if n.get("level") == "source" else f"уровень {n.get('level')}"
+                hier_nodes[tid] = {"tu_id": tid, "name": n.get("name") or n.get("address"), "role": role}
+
+    hier_ids = list(hier_nodes)
+    hier_with_data: set = set()
+    for i in range(0, len(hier_ids), 400):
+        chunk = hier_ids[i:i + 400]
+        for r in ddb.query(DeviceHourly.tu_uuid).filter(DeviceHourly.tu_uuid.in_(chunk)).distinct():
+            hier_with_data.add(r[0])
+    hier_no_data = [n for tid, n in hier_nodes.items() if tid not in hier_with_data]
+    hier_no_data.sort(key=lambda x: (x["role"], x["name"] or ""))
     outages_gvs = ddb.query(func.count(Outage.id)).filter(Outage.service_gvs == True).scalar() or 0  # noqa: E712
 
     uploads = ddb.query(DeviceUpload).order_by(DeviceUpload.uploaded_at.desc()).all()
@@ -110,5 +138,9 @@ def get_dashboard(db: Session = Depends(get_db), ddb: Session = Depends(get_devi
             "uploads": [DeviceUploadOut.model_validate(u).model_dump() for u in uploads],
             "points_no_data": points_no_data[:500],
             "points_partial": points_partial[:500],
+            "hierarchy_total": len(hier_nodes),
+            "hierarchy_with_data": len(hier_with_data),
+            "hierarchy_no_data_count": len(hier_no_data),
+            "hierarchy_no_data": hier_no_data[:500],
         },
     }
