@@ -40,6 +40,9 @@ export const getDeviceHourly = (tuUuid, params) =>
 export const getDeviceUpload = (id) =>
   api.get(`/api/device/uploads/${id}`).then((r) => r.data);
 
+export const getDevicePointOutages = (tuUuid) =>
+  api.get(`/api/device/points/${tuUuid}/outages`).then((r) => r.data);
+
 export const getDashboard = () => api.get("/api/dashboard").then((r) => r.data);
 
 export const clearDeviceData = () => api.delete("/api/device/data").then((r) => r.data);

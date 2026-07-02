@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.device_database import get_device_db
 from app.models import (
-    ReportPeriod, TuReportRow, DeviceUpload, DevicePoint, DeviceHourly,
+    ReportPeriod, TuReportRow, DeviceUpload, DevicePoint, DeviceHourly, Outage,
 )
 from app.schemas.device_schemas import DeviceUploadOut
 
@@ -36,14 +36,50 @@ def get_dashboard(db: Session = Depends(get_db), ddb: Session = Depends(get_devi
 
     dev_ts = ddb.query(func.min(DeviceHourly.ts), func.max(DeviceHourly.ts)).one()
 
-    # Точки без единого достоверного часа (данные есть в структуре, но пустые).
-    valid_per_point = (
-        ddb.query(DeviceHourly.tu_uuid)
-        .filter(DeviceHourly.valid == True)  # noqa: E712
+    # Достоверные/недостоверные часы по каждой точке.
+    per_point = (
+        ddb.query(
+            DeviceHourly.tu_uuid,
+            func.count(DeviceHourly.id),
+            func.sum(case((DeviceHourly.valid == True, 1), else_=0)),  # noqa: E712
+        )
         .group_by(DeviceHourly.tu_uuid)
-        .count()
+        .all()
     )
-    points_without_valid = points_total - valid_per_point
+    valid_map = {uuid: (total, valid or 0) for uuid, total, valid in per_point}
+    name_map = {p.tu_uuid: p.object_name for p in ddb.query(DevicePoint).all()}
+
+    points_no_data = []      # ни одного достоверного часа
+    points_partial = []      # есть недостоверные (пустые) часы, но не всё
+    for uuid, (total, valid) in valid_map.items():
+        invalid = total - valid
+        item = {
+            "tu_uuid": uuid,
+            "object_name": name_map.get(uuid),
+            "hours_total": total,
+            "hours_valid": valid,
+            "hours_invalid": invalid,
+            "invalid_pct": round(invalid / total * 100, 1) if total else 0.0,
+        }
+        if valid == 0:
+            points_no_data.append(item)
+        elif invalid > 0:
+            points_partial.append(item)
+
+    # Точки, которых вообще нет в почасовых данных (в meta есть, часов нет).
+    for uuid, name in name_map.items():
+        if uuid not in valid_map:
+            points_no_data.append({
+                "tu_uuid": uuid, "object_name": name,
+                "hours_total": 0, "hours_valid": 0, "hours_invalid": 0, "invalid_pct": 100.0,
+            })
+
+    points_partial.sort(key=lambda x: x["invalid_pct"], reverse=True)
+    points_no_data.sort(key=lambda x: (x["object_name"] or ""))
+    points_without_valid = len(points_no_data)
+
+    outages_total = ddb.query(func.count(Outage.id)).scalar() or 0
+    outages_gvs = ddb.query(func.count(Outage.id)).filter(Outage.service_gvs == True).scalar() or 0  # noqa: E712
 
     uploads = ddb.query(DeviceUpload).order_by(DeviceUpload.uploaded_at.desc()).all()
 
@@ -64,8 +100,12 @@ def get_dashboard(db: Session = Depends(get_db), ddb: Session = Depends(get_devi
             "hours_no_t1": hours_no_t1,
             "valid_pct": round(hours_valid / hours_total * 100, 1) if hours_total else 0.0,
             "points_without_valid": points_without_valid,
+            "outages_total": outages_total,
+            "outages_gvs": outages_gvs,
             "ts_min": dev_ts[0],
             "ts_max": dev_ts[1],
             "uploads": [DeviceUploadOut.model_validate(u).model_dump() for u in uploads],
+            "points_no_data": points_no_data[:500],
+            "points_partial": points_partial[:500],
         },
     }

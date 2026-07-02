@@ -23,6 +23,9 @@ def _set_sqlite_pragma(dbapi_conn, _):
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA synchronous=NORMAL")
+        # SQLite — один писатель за раз; при параллельных загрузках писатель
+        # ждёт освобождения блокировки, а не падает с "database is locked".
+        cur.execute("PRAGMA busy_timeout=60000")
         cur.close()
 
 

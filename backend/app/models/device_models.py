@@ -15,6 +15,7 @@ class DeviceUpload(DeviceBase):
 
     id = Column(Integer, primary_key=True)
     source_filename = Column(String, nullable=False)
+    kind = Column(String, default="device")  # device | outage
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     period_start = Column(DateTime, nullable=True)
     period_end = Column(DateTime, nullable=True)
@@ -38,6 +39,38 @@ class DevicePoint(DeviceBase):
     scheme = Column(String)
     last_upload_id = Column(Integer, ForeignKey("device_uploads.id"))
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Outage(DeviceBase):
+    """Строка ведомости отключений. Связь с объектом — по нормализованному адресу."""
+
+    __tablename__ = "outages"
+
+    id = Column(Integer, primary_key=True)
+    upload_id = Column(Integer, ForeignKey("device_uploads.id"), nullable=False)
+
+    number = Column(String)            # Номер отключения
+    kind = Column(String)              # Тип: аварийное / плановое
+    status = Column(String)            # Статус: исполнено / в работе
+    impact = Column(String)            # факт: прекращение / ограничение
+    address = Column(String)           # исходный адрес
+    address_norm = Column(String, index=True)
+    fias = Column(String)
+    guid = Column(String, index=True)
+    source = Column(String)            # Источник
+    service_gvs = Column(Boolean, default=False)  # затрагивает ГВС
+    reason = Column(String)            # Причина отключения
+    load_gkal = Column(Float)          # Отключаемая нагрузка ГВС, Гкал/ч
+    residents = Column(Integer)        # Количество жителей
+    start_fact = Column(DateTime)      # Дата отключения (факт)
+    end_fact = Column(DateTime)        # Дата включения (факт)
+    start_plan = Column(DateTime)
+    end_plan = Column(DateTime)
+    note = Column(String)
+
+    __table_args__ = (
+        Index("ix_outages_addr_impact", "address_norm", "impact"),
+    )
 
 
 class DeviceHourly(DeviceBase):

@@ -49,11 +49,30 @@ class DevicePointSummary(BaseModel):
     hours_above_75: int = 0
 
 
+class OutageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    number: Optional[str] = None
+    kind: Optional[str] = None
+    status: Optional[str] = None
+    impact: Optional[str] = None
+    address: Optional[str] = None
+    source: Optional[str] = None
+    service_gvs: bool = False
+    reason: Optional[str] = None
+    load_gkal: Optional[float] = None
+    residents: Optional[int] = None
+    start_fact: Optional[datetime] = None
+    end_fact: Optional[datetime] = None
+    note: Optional[str] = None
+
+
 class DeviceUploadOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     source_filename: str
+    kind: str = "device"
     uploaded_at: Optional[datetime] = None
     period_start: Optional[datetime] = None
     period_end: Optional[datetime] = None

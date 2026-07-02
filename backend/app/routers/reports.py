@@ -15,6 +15,9 @@ from app.services.ingest import ingest_report
 from app.services.device_ingest import (
     looks_like_device_report, run_device_ingest_background,
 )
+from app.services.outage_ingest import (
+    looks_like_outage_report, run_outage_ingest_background,
+)
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -29,10 +32,13 @@ def upload_report(
     if not file.filename.lower().endswith((".xlsx", ".xls")):
         raise HTTPException(400, "Ожидается файл Excel (.xlsx)")
 
-    # Автоопределение формата. Почасовой приборный файл (до ~1.5 ГБ) не разбираем
-    # в самом запросе — иначе долгий парсинг упирается в таймауты прокси (504/502).
-    # Сохраняем во временный файл и разбираем в фоне, а фронт опрашивает статус.
-    if looks_like_device_report(file.file):
+    # Автоопределение формата. Приборные/ведомость (могут быть до ~1.5 ГБ) не
+    # разбираем в самом запросе — иначе долгий парсинг упирается в таймауты
+    # прокси (504/502). Сохраняем во временный файл и разбираем в фоне, а фронт
+    # опрашивает статус.
+    is_device = looks_like_device_report(file.file)
+    is_outage = (not is_device) and looks_like_outage_report(file.file)
+    if is_device or is_outage:
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
         try:
             with os.fdopen(tmp_fd, "wb") as tmp:
@@ -42,14 +48,16 @@ def upload_report(
             os.remove(tmp_path)
             raise
 
-        upload = DeviceUpload(source_filename=file.filename, status="processing")
+        kind = "device" if is_device else "outage"
+        upload = DeviceUpload(source_filename=file.filename, kind=kind, status="processing")
         device_db.add(upload)
         device_db.commit()
         device_db.refresh(upload)
 
-        background.add_task(run_device_ingest_background, tmp_path, upload.id)
+        runner = run_device_ingest_background if is_device else run_outage_ingest_background
+        background.add_task(runner, tmp_path, upload.id)
         out = DeviceUploadOut.model_validate(upload)
-        return {"kind": "device", "device": out.model_dump()}
+        return {"kind": kind, "device": out.model_dump()}
 
     # Недельный аналитический отчёт — небольшой, разбираем сразу.
     try:

@@ -63,8 +63,24 @@ export default function DashboardModal({ onClose }) {
                 <Stat label="Пустые / недостоверные часы" value={num(d.hours_invalid)} danger={d.hours_invalid > 0} />
                 <Stat label="Часов без T подачи" value={num(d.hours_no_t1)} danger={d.hours_no_t1 > 0} />
                 <Stat label="Точек без данных" value={num(d.points_without_valid)} danger={d.points_without_valid > 0} />
+                <Stat label="Отключений ГВС" value={num(d.outages_gvs)} />
                 <Stat label="Диапазон" value={d.ts_min ? `${fmtDateTime(d.ts_min)} — ${fmtDateTime(d.ts_max)}` : "—"} />
               </div>
+
+              {d.points_no_data?.length > 0 && (
+                <PointsList
+                  title={`Точки без данных вообще (${d.points_no_data.length})`}
+                  points={d.points_no_data}
+                  kind="no-data"
+                />
+              )}
+              {d.points_partial?.length > 0 && (
+                <PointsList
+                  title={`Точки с пустыми (недостоверными) данными (${d.points_partial.length})`}
+                  points={d.points_partial}
+                  kind="partial"
+                />
+              )}
 
               {d.uploads?.length > 0 && (
                 <div className="table-wrap" style={{ marginTop: 12, maxHeight: 220 }}>
@@ -111,6 +127,38 @@ export default function DashboardModal({ onClose }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function PointsList({ title, points, kind }) {
+  return (
+    <>
+      <h4 className="dash-section">{title}</h4>
+      <div className="table-wrap" style={{ maxHeight: 240 }}>
+        <table>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left" }}>Объект</th>
+              <th>Часов всего</th>
+              {kind === "partial" && <th>Пустых</th>}
+              {kind === "partial" && <th>% пустых</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.tu_uuid}>
+                <td className="wrap-cell" style={{ textAlign: "left" }} title={p.object_name}>
+                  {p.object_name || p.tu_uuid}
+                </td>
+                <td>{num(p.hours_total)}</td>
+                {kind === "partial" && <td>{num(p.hours_invalid)}</td>}
+                {kind === "partial" && <td className="violation">{p.invalid_pct}%</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

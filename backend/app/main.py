@@ -24,6 +24,8 @@ def _ensure_device_columns():
             conn.execute(text("ALTER TABLE device_uploads ADD COLUMN status VARCHAR DEFAULT 'done'"))
         if "error" not in existing:
             conn.execute(text("ALTER TABLE device_uploads ADD COLUMN error VARCHAR"))
+        if "kind" not in existing:
+            conn.execute(text("ALTER TABLE device_uploads ADD COLUMN kind VARCHAR DEFAULT 'device'"))
 
 
 _ensure_device_columns()

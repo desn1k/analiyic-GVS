@@ -5,10 +5,11 @@ from sqlalchemy import func, case, text
 from sqlalchemy.orm import Session
 
 from app.device_database import get_device_db, device_engine
-from app.models import DevicePoint, DeviceHourly, DeviceUpload
+from app.models import DevicePoint, DeviceHourly, DeviceUpload, Outage
 from app.schemas.device_schemas import (
-    DevicePointOut, DeviceHourlyOut, DevicePointSummary, DeviceUploadOut,
+    DevicePointOut, DeviceHourlyOut, DevicePointSummary, DeviceUploadOut, OutageOut,
 )
+from app.services.address import normalize_address, is_matchable_address
 
 router = APIRouter(prefix="/api/device", tags=["device"])
 
@@ -80,6 +81,23 @@ def point_hourly(
     return q.order_by(DeviceHourly.ts).limit(limit).all()
 
 
+@router.get("/points/{tu_uuid}/outages", response_model=list[OutageOut])
+def point_outages(tu_uuid: str, db: Session = Depends(get_device_db)):
+    """Отключения по адресу точки учёта (только затрагивающие ГВС)."""
+    point = db.query(DevicePoint).filter(DevicePoint.tu_uuid == tu_uuid).first()
+    if point is None or not point.object_name:
+        return []
+    addr = normalize_address(point.object_name)
+    if not is_matchable_address(addr):
+        return []
+    return (
+        db.query(Outage)
+        .filter(Outage.address_norm == addr, Outage.service_gvs == True)  # noqa: E712
+        .order_by(Outage.start_fact)
+        .all()
+    )
+
+
 @router.get("/uploads", response_model=list[DeviceUploadOut])
 def list_uploads(db: Session = Depends(get_device_db)):
     return db.query(DeviceUpload).order_by(DeviceUpload.uploaded_at.desc()).all()
@@ -98,6 +116,7 @@ def clear_device_data(db: Session = Depends(get_device_db)):
     """Полностью очистить приборные данные (часы, точки, загрузки)."""
     hours = db.query(DeviceHourly).delete()
     db.query(DevicePoint).delete()
+    db.query(Outage).delete()
     db.query(DeviceUpload).delete()
     db.commit()
     # Освобождаем место на диске после массового удаления.

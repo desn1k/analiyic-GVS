@@ -3,7 +3,19 @@ import {
   ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ReferenceArea,
 } from "recharts";
-import { getDeviceSummary, getDeviceHourly } from "../api/client";
+import { getDeviceSummary, getDeviceHourly, getDevicePointOutages } from "../api/client";
+
+const IMPACT_COLOR = {
+  "прекращение": "#dc2626",
+  "ограничение": "#f59e0b",
+  "иное": "#9ca3af",
+};
+
+function fmtDT(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
 
 function fmtTs(ts) {
   const d = new Date(ts);
@@ -17,6 +29,7 @@ function fmtNum(v) {
 export default function DevicePointModal({ row, onClose }) {
   const [summary, setSummary] = useState(null);
   const [hourly, setHourly] = useState(null);
+  const [outages, setOutages] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -27,11 +40,16 @@ export default function DevicePointModal({ row, onClose }) {
     let alive = true;
     setLoading(true);
     setError(null);
-    Promise.all([getDeviceSummary(tuUuid), getDeviceHourly(tuUuid, { limit: 20000 })])
-      .then(([s, h]) => {
+    Promise.all([
+      getDeviceSummary(tuUuid),
+      getDeviceHourly(tuUuid, { limit: 20000 }),
+      getDevicePointOutages(tuUuid).catch(() => []),
+    ])
+      .then(([s, h, o]) => {
         if (!alive) return;
         setSummary(s);
         setHourly(h);
+        setOutages(o || []);
       })
       .catch((e) => {
         if (!alive) return;
@@ -49,6 +67,20 @@ export default function DevicePointModal({ row, onClose }) {
     "Объём (M1), т": h.valid ? h.m1 : null,
   }));
   const hasVolume = chartData.some((d) => d["Объём (M1), т"] > 0);
+
+  // Сопоставляем интервалы отключений с метками часовой шкалы графика.
+  const times = (hourly || []).map((h) => new Date(h.ts).getTime());
+  const outageBands = (outages || []).map((o, idx) => {
+    const start = o.start_fact ? new Date(o.start_fact).getTime() : null;
+    const end = o.end_fact ? new Date(o.end_fact).getTime() : null;
+    if (!times.length || start === null) return null;
+    let i1 = times.findIndex((t) => t >= start);
+    if (i1 === -1) return null;                       // отключение позже данных
+    let i2 = end === null ? times.length - 1 : times.reduce((acc, t, i) => (t <= end ? i : acc), -1);
+    if (i2 < 0) return null;                          // отключение раньше данных
+    if (i2 < i1) i2 = i1;
+    return { key: idx, x1: chartData[i1].ts, x2: chartData[i2].ts, impact: o.impact, reason: o.reason };
+  }).filter(Boolean);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -89,6 +121,18 @@ export default function DevicePointModal({ row, onClose }) {
                   <ComposedChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" />
                     <ReferenceArea yAxisId="temp" y1={60} y2={75} fill="#16a34a" fillOpacity={0.06} />
+                    {outageBands.map((b) => (
+                      <ReferenceArea
+                        key={b.key}
+                        yAxisId="temp"
+                        x1={b.x1}
+                        x2={b.x2}
+                        fill={IMPACT_COLOR[b.impact] || IMPACT_COLOR["иное"]}
+                        fillOpacity={0.14}
+                        stroke={IMPACT_COLOR[b.impact] || IMPACT_COLOR["иное"]}
+                        strokeOpacity={0.4}
+                      />
+                    ))}
                     <XAxis dataKey="ts" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={40} />
                     <YAxis yAxisId="temp" tick={{ fontSize: 11 }} domain={["auto", "auto"]} unit="°" />
                     {hasVolume && (
@@ -105,8 +149,35 @@ export default function DevicePointModal({ row, onClose }) {
                 </ResponsiveContainer>
                 <p className="footnote">
                   Зелёная зона — норматив подачи ГВС 60–75 °C (левая ось). Синие столбцы — объём M1, т (правая ось).
-                  Разрывы линии — недостоверные часы.
+                  Разрывы линии — недостоверные часы. Цветные зоны — отключения ГВС.
                 </p>
+
+                {outages.length > 0 && (
+                  <div className="outage-list">
+                    <h4 className="dash-section">Отключения ГВС по этому адресу ({outages.length})</h4>
+                    {outages.map((o, i) => (
+                      <div className="outage-item" key={i}>
+                        <span
+                          className="outage-badge"
+                          style={{ background: IMPACT_COLOR[o.impact] || IMPACT_COLOR["иное"] }}
+                        >
+                          {o.impact || "—"}
+                        </span>
+                        <div className="outage-text">
+                          <div>
+                            <b>{o.reason || "Причина не указана"}</b>
+                            {o.kind ? ` · ${o.kind}` : ""}{o.status ? ` · ${o.status}` : ""}
+                          </div>
+                          <div className="metric-sub">
+                            {fmtDT(o.start_fact)} — {fmtDT(o.end_fact)}
+                            {o.number ? ` · №${o.number}` : ""}
+                            {o.note ? ` · ${o.note}` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </>
           )}
