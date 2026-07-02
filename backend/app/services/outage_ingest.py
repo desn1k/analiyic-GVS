@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 import openpyxl
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from app.models import DeviceUpload, Outage
@@ -93,7 +94,9 @@ def ingest_outage_report(db: Session, source, upload_id: int) -> DeviceUpload:
     def flush(final=False):
         nonlocal batch
         if batch:
-            db.bulk_insert_mappings(Outage, batch)
+            # OR REPLACE по ключу (номер, адрес, дата, тип) — без дублей при
+            # повторной загрузке той же ведомости.
+            db.execute(insert(Outage).prefix_with("OR REPLACE"), batch)
             batch = []
         if final or True:
             upload.hours_count = count

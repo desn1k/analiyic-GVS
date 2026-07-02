@@ -12,11 +12,12 @@ DeviceBase.metadata.create_all(bind=device_engine)
 
 
 def _ensure_device_columns():
-    """Лёгкая миграция: добавляем недостающие столбцы в существующую device.db."""
+    """Лёгкая миграция: столбцы + уникальные индексы (дедуп) в существующей device.db."""
     from sqlalchemy import inspect, text
 
     insp = inspect(device_engine)
-    if "device_uploads" not in insp.get_table_names():
+    tables = insp.get_table_names()
+    if "device_uploads" not in tables:
         return
     existing = {c["name"] for c in insp.get_columns("device_uploads")}
     with device_engine.begin() as conn:
@@ -26,6 +27,33 @@ def _ensure_device_columns():
             conn.execute(text("ALTER TABLE device_uploads ADD COLUMN error VARCHAR"))
         if "kind" not in existing:
             conn.execute(text("ALTER TABLE device_uploads ADD COLUMN kind VARCHAR DEFAULT 'device'"))
+
+        # Уникальные индексы для дедупа при повторной загрузке. Перед созданием
+        # убираем уже накопленные дубли (оставляем строку с максимальным id).
+        if "device_hourly" in tables:
+            idx = {i["name"] for i in insp.get_indexes("device_hourly")}
+            if "uq_device_hourly_tu_ts" not in idx:
+                conn.execute(text(
+                    "DELETE FROM device_hourly WHERE id NOT IN "
+                    "(SELECT MAX(id) FROM device_hourly GROUP BY tu_uuid, ts)"
+                ))
+                conn.execute(text(
+                    "CREATE UNIQUE INDEX uq_device_hourly_tu_ts ON device_hourly(tu_uuid, ts)"
+                ))
+        if "outages" in tables:
+            idx = {i["name"] for i in insp.get_indexes("outages")}
+            if "uq_outage_key" not in idx:
+                # COALESCE — иначе строки с NULL (напр. без даты) считаются
+                # уникальными и дублируются при повторной загрузке.
+                key = ("COALESCE(number,''), address_norm, "
+                       "COALESCE(start_fact,''), COALESCE(impact,'')")
+                conn.execute(text(
+                    f"DELETE FROM outages WHERE id NOT IN "
+                    f"(SELECT MAX(id) FROM outages GROUP BY {key})"
+                ))
+                conn.execute(text(
+                    f"CREATE UNIQUE INDEX uq_outage_key ON outages({key})"
+                ))
 
 
 _ensure_device_columns()

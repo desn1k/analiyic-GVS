@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Float, Date, DateTime, Boolean,
-    ForeignKey, Index,
+    ForeignKey, Index, UniqueConstraint,
 )
 
 from app.device_database import DeviceBase
@@ -68,6 +68,9 @@ class Outage(DeviceBase):
     end_plan = Column(DateTime)
     note = Column(String)
 
+    # Уникальный ключ дедупа создаётся как выражение с COALESCE в миграции
+    # (main._ensure_device_columns) — SQLite считает NULL-ы уникальными,
+    # поэтому обычный UniqueConstraint не годится (у части строк нет даты).
     __table_args__ = (
         Index("ix_outages_addr_impact", "address_norm", "impact"),
     )
@@ -130,5 +133,5 @@ class DeviceHourly(DeviceBase):
     valid = Column(Boolean, default=True)
 
     __table_args__ = (
-        Index("ix_device_hourly_tu_ts", "tu_uuid", "ts"),
+        UniqueConstraint("tu_uuid", "ts", name="uq_device_hourly_tu_ts"),
     )

@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Optional
 
 import openpyxl
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from app.models import DeviceUpload, DevicePoint, DeviceHourly
@@ -125,7 +126,9 @@ def ingest_device_report(db: Session, source, upload_id: int) -> DeviceUpload:
     def flush_batch(final=False):
         nonlocal batch, flushes_since_commit
         if batch:
-            db.bulk_insert_mappings(DeviceHourly, batch)
+            # OR REPLACE: повторная загрузка того же часа (tu_uuid, ts) перезапишет,
+            # а не создаст дубль.
+            db.execute(insert(DeviceHourly).prefix_with("OR REPLACE"), batch)
             batch = []
             flushes_since_commit += 1
         # Коммитим каждые ~20 пачек (≈100k строк) и обновляем прогресс,
