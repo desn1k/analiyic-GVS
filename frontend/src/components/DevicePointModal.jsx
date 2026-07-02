@@ -22,6 +22,28 @@ function fmtTs(ts) {
   return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:00`;
 }
 
+// Тултип: значения + отключения, действующие в наведённый час.
+function OutageTooltip({ active, payload, label, outageByLabel }) {
+  if (!active || !payload?.length) return null;
+  const outs = outageByLabel?.[label] || [];
+  return (
+    <div className="chart-tooltip">
+      <div className="chart-tooltip-title">{label}</div>
+      {payload.map((p) => (
+        <div key={p.dataKey} style={{ color: p.color }}>
+          {p.name}: {p.value == null ? "—" : p.value}
+        </div>
+      ))}
+      {outs.map((o, i) => (
+        <div key={i} className="chart-tooltip-outage" style={{ color: IMPACT_COLOR[o.impact] || IMPACT_COLOR["иное"] }}>
+          ⛔ {o.impact}: {o.reason}
+          <div className="chart-tooltip-sub">{o.period}{o.note ? ` · ${o.note}` : ""}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Вертикальная подпись внутри зоны отключения: причина + период.
 function OutageLabel({ text, color, viewBox }) {
   if (!viewBox) return null;
@@ -97,6 +119,7 @@ export default function DevicePointModal({ row, onClose }) {
 
   // Сопоставляем интервалы отключений с метками часовой шкалы графика.
   const times = (hourly || []).map((h) => new Date(h.ts).getTime());
+  const outageByLabel = {}; // метка времени -> список отключений, действующих в этот час
   const outageBands = (outages || []).map((o, idx) => {
     const start = o.start_fact ? new Date(o.start_fact).getTime() : null;
     const end = o.end_fact ? new Date(o.end_fact).getTime() : null;
@@ -107,8 +130,11 @@ export default function DevicePointModal({ row, onClose }) {
     if (i2 < 0) return null;                          // отключение раньше данных
     if (i2 < i1) i2 = i1;
     const period = `${fmtDT(o.start_fact)} — ${fmtDT(o.end_fact)}`;
-    const label = `${o.reason || o.impact || "отключение"} · ${period}`;
-    return { key: idx, x1: chartData[i1].ts, x2: chartData[i2].ts, impact: o.impact, label };
+    const info = { impact: o.impact, reason: o.reason || "отключение", period, note: o.note };
+    for (let i = i1; i <= i2; i++) {
+      (outageByLabel[chartData[i].ts] ||= []).push(info);
+    }
+    return { key: idx, x1: chartData[i1].ts, x2: chartData[i2].ts, impact: o.impact, label: `${info.reason} · ${period}` };
   }).filter(Boolean);
 
   return (
@@ -186,7 +212,7 @@ export default function DevicePointModal({ row, onClose }) {
                     {hasVolume && (
                       <YAxis yAxisId="vol" orientation="right" tick={{ fontSize: 11 }} domain={[0, "auto"]} />
                     )}
-                    <Tooltip />
+                    <Tooltip content={<OutageTooltip outageByLabel={outageByLabel} />} />
                     <Legend />
                     {hasVolume && (
                       <Bar yAxisId="vol" dataKey="Объём (M1), т" fill="#93c5fd" barSize={6} />
