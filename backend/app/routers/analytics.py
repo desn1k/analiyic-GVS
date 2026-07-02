@@ -474,6 +474,10 @@ def _outage_intervals(device_db: Session) -> dict[str, list]:
     return intervals
 
 
+def _low_threshold(ts, night_start, night_end, night_low, day_low):
+    return night_low if night_start <= ts.hour < night_end else day_low
+
+
 @router.get("/gvs-quality")
 def gvs_quality(
     date_from: str = Query(..., description="ISO datetime начала периода"),
@@ -485,8 +489,11 @@ def gvs_quality(
     day_low: float = 57.0,
     night_low: float = 55.0,
     high: float = 75.0,
+    exclude_no_draw: bool = True,
+    scope: str = Query("report", pattern="^(report|all)$"),
     only_violations: bool = False,
     limit: int = 5000,
+    db: Session = Depends(get_db),
     device_db: Session = Depends(get_device_db),
 ):
     try:
@@ -495,45 +502,100 @@ def gvs_quality(
     except ValueError:
         raise HTTPException(400, "Неверный формат даты (ожидается ISO)")
 
-    reg_names = {r.object_id: r.name for r in device_db.query(ObjectRegistry.object_id, ObjectRegistry.name).all()}
-    points = {
-        p.tu_uuid: p for p in device_db.query(DevicePoint).all()
-    }
+    points = {p.tu_uuid: p for p in device_db.query(DevicePoint).all()}
     outage_map = _outage_intervals(device_db)
+
+    # Точки учёта из базы ГВС (недельный отчёт): анализируем именно их, а не все
+    # приборные точки (среди которых ЦТП/источники). Имя и признак тупика — из отчёта.
+    report_info = {}
+    for tu_id, oname, is_de in db.query(
+        TuReportRow.tu_id, TuReportRow.object_name, TuReportRow.is_dead_end
+    ).distinct():
+        if tu_id and tu_id not in report_info:
+            report_info[tu_id] = {"object_name": oname, "is_dead_end": is_de}
+    scope_ids = set(report_info) if scope == "report" else None
+
+    # цепочки иерархии (для атрибуции причины)
+    from app.models import Hierarchy  # локальный импорт, чтобы не тянуть в топ
+    import json
+    hier_chain = {
+        h.consumer_tu_id: json.loads(h.chain or "[]")
+        for h in device_db.query(Hierarchy).all()
+    }
 
     rows = (
         device_db.query(
-            DeviceHourly.tu_uuid, DeviceHourly.ts, DeviceHourly.t1, DeviceHourly.valid
+            DeviceHourly.tu_uuid, DeviceHourly.ts, DeviceHourly.t1,
+            DeviceHourly.v1, DeviceHourly.m1, DeviceHourly.valid
         )
         .filter(DeviceHourly.ts >= dt_from, DeviceHourly.ts <= dt_to)
         .all()
     )
 
+    # почасовой t1 по всем точкам (для проверки вышестоящих ТУ)
+    t1_by_tu: dict[str, dict] = {}
     agg: dict[str, dict] = {}
-    for tu, ts, t1, valid in rows:
+    for tu, ts, t1, v1, m1, valid in rows:
+        if valid and t1 is not None:
+            t1_by_tu.setdefault(tu, {})[ts] = t1
+        if scope_ids is not None and tu not in scope_ids:
+            continue
         a = agg.get(tu)
         if a is None:
             addr = normalize_address(points[tu].object_name) if tu in points else ""
             a = agg[tu] = {
                 "total": 0, "valid": 0, "counted": 0, "excluded_outage": 0,
-                "viol_low": 0, "viol_high": 0, "t1_sum": 0.0,
-                "intervals": outage_map.get(addr, []),
+                "excluded_noflow": 0, "viol_low": 0, "viol_high": 0, "t1_sum": 0.0,
+                "viol_ts": [], "intervals": outage_map.get(addr, []),
             }
         a["total"] += 1
         if not valid or t1 is None:
             continue
         a["valid"] += 1
-        # исключаем часы отключений
         if any(s <= ts <= e for s, e in a["intervals"]):
             a["excluded_outage"] += 1
             continue
+        vol = v1 if v1 is not None else m1
+        if exclude_no_draw and (vol is None or vol <= 0.001):
+            a["excluded_noflow"] += 1
+            continue
         a["counted"] += 1
         a["t1_sum"] += t1
-        low = night_low if night_start <= ts.hour < night_end else day_low
+        low = _low_threshold(ts, night_start, night_end, night_low, day_low)
         if t1 < low:
             a["viol_low"] += 1
+            a["viol_ts"].append(ts)
         elif t1 > high:
             a["viol_high"] += 1
+
+    def _attribute(tu, viol_ts):
+        """Системная (источник/сеть) или локальная причина недогрева — по иерархии."""
+        chain = hier_chain.get(tu) or []
+        upstream = None
+        for n in chain:
+            uid = n.get("tu_id")
+            if uid and uid != tu and uid in t1_by_tu:
+                upstream = (uid, n)
+                break
+        if not upstream or not viol_ts:
+            return "источник выше по иерархии без данных — причина не определена"
+        uid, node = upstream
+        umap = t1_by_tu[uid]
+        checked = same_low = 0
+        for ts in viol_ts:
+            ut = umap.get(ts)
+            if ut is None:
+                continue
+            checked += 1
+            low = _low_threshold(ts, night_start, night_end, night_low, day_low)
+            if ut < low:
+                same_low += 1
+        if checked == 0:
+            return "нет совпадающих часов у вышестоящей ТУ"
+        label = node.get("name") or node.get("address") or uid
+        if same_low / checked >= 0.5:
+            return f"системная: недогрев и выше по сети ({label})"
+        return f"локальная: выше по сети норма ({label}) — внутридомовая/ветка"
 
     result = []
     for tu, a in agg.items():
@@ -542,25 +604,29 @@ def gvs_quality(
         counted = a["counted"]
         viol = a["viol_low"] + a["viol_high"]
         viol_pct = round(viol / counted * 100, 1) if counted else 0.0
-        p = points.get(tu)
-        obj_id = None  # у приборной точки нет object_id; имя берём из реестра по адресу недоступно
-        name = (p.object_name if p else None)
+        info = report_info.get(tu, {})
+        name = info.get("object_name") or (points[tu].object_name if tu in points else None)
 
+        cause = ""
         if reliability < min_reliability_pct:
             verdict = "Недостаточно достоверных данных"
         elif counted == 0:
             verdict = "Нет зачтённых часов (всё исключено)"
         elif viol == 0:
             verdict = "Норма"
+        elif a["viol_high"] > a["viol_low"]:
+            verdict = "Перегрев (>75°C)"
         else:
-            if a["viol_high"] > a["viol_low"]:
-                verdict = "Перегрев (>75°C)"
-            else:
-                verdict = "Недогрев (ниже норматива)"
-            if viol_pct > chronic_pct:
-                verdict += f"; хроническое ({viol}/{counted} ч)"
+            verdict = "Недогрев (ниже норматива)"
+            cause = _attribute(tu, a["viol_ts"])
+            if str(info.get("is_dead_end") or "").strip().lower() == "да":
+                cause += "; тупиковая ветка"
+        if viol and viol_pct > chronic_pct:
+            verdict += f"; хроническое ({viol}/{counted} ч)"
 
-        if only_violations and verdict in ("Норма", "Недостаточно достоверных данных", "Нет зачтённых часов (всё исключено)"):
+        if only_violations and verdict in (
+            "Норма", "Недостаточно достоверных данных", "Нет зачтённых часов (всё исключено)"
+        ):
             continue
 
         result.append({
@@ -570,12 +636,14 @@ def gvs_quality(
             "hours_valid": a["valid"],
             "hours_counted": counted,
             "hours_excluded_outage": a["excluded_outage"],
+            "hours_excluded_noflow": a["excluded_noflow"],
             "reliability_pct": reliability,
             "viol_low": a["viol_low"],
             "viol_high": a["viol_high"],
             "viol_pct": viol_pct,
             "avg_t1": round(a["t1_sum"] / counted, 1) if counted else None,
             "verdict": verdict,
+            "cause": cause,
         })
 
     result.sort(key=lambda x: x["viol_pct"], reverse=True)
@@ -585,6 +653,7 @@ def gvs_quality(
             "chronic_pct": chronic_pct, "min_reliability_pct": min_reliability_pct,
             "night": [night_start, night_end], "day_low": day_low,
             "night_low": night_low, "high": high,
+            "exclude_no_draw": exclude_no_draw, "scope": scope,
         },
         "count": len(result),
         "rows": result[:limit],
