@@ -55,6 +55,11 @@ export const getPointHierarchy = (tuUuid) =>
 export const getGvsQuality = (params) =>
   api.get("/api/analytics/gvs-quality", { params }).then((r) => r.data);
 
+export const gvsQualityExportUrl = (params) => {
+  const qs = new URLSearchParams(params).toString();
+  return `${api.defaults.baseURL || ""}/api/analytics/gvs-quality/export?${qs}`;
+};
+
 export const getDashboard = () => api.get("/api/dashboard").then((r) => r.data);
 
 export const clearDeviceData = () => api.delete("/api/device/data").then((r) => r.data);

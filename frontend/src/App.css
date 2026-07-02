@@ -298,6 +298,13 @@ td.violation { color: var(--danger); font-weight: 600; }
 .verdict-ok { color: #16a34a; }
 .verdict-bad { color: var(--danger); font-weight: 600; }
 .verdict-muted { color: var(--text-muted); }
+.download-btn {
+  background: var(--surface); color: var(--primary); border: 1px solid var(--primary);
+  border-radius: var(--radius-sm); padding: 10px 16px; font-size: 13px; font-weight: 500;
+  cursor: pointer; white-space: nowrap; transition: background 0.15s ease;
+}
+.download-btn:hover:not(:disabled) { background: #eef3fe; }
+.download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .link-cell:disabled { color: var(--text-muted); cursor: default; text-decoration: none; }
 .muted-note { color: var(--text-muted); font-weight: 400; font-size: 13px; }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getGvsQuality } from "../api/client";
+import { getGvsQuality, gvsQualityExportUrl } from "../api/client";
 
 function fmt(v) {
   return v === null || v === undefined ? "—" : v;
@@ -23,18 +23,25 @@ export default function GvsQualityAnalysis() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const buildParams = () => ({
+    date_from: from, date_to: to,
+    chronic_pct: chronic, min_reliability_pct: reliability,
+    only_violations: onlyViol, exclude_no_draw: excludeNoDraw, scope,
+  });
+
   const run = () => {
     if (!from || !to) { setError("Укажите начало и конец периода"); return; }
     setError(null);
     setLoading(true);
-    getGvsQuality({
-      date_from: from, date_to: to,
-      chronic_pct: chronic, min_reliability_pct: reliability,
-      only_violations: onlyViol, exclude_no_draw: excludeNoDraw, scope,
-    })
+    getGvsQuality(buildParams())
       .then(setData)
       .catch((e) => setError(e.response?.data?.detail || e.message))
       .finally(() => setLoading(false));
+  };
+
+  const download = () => {
+    if (!from || !to) { setError("Укажите начало и конец периода"); return; }
+    window.open(gvsQualityExportUrl(buildParams()), "_blank");
   };
 
   return (
@@ -58,6 +65,7 @@ export default function GvsQualityAnalysis() {
         <label className="quality-check"><input type="checkbox" checked={excludeNoDraw} onChange={(e) => setExcludeNoDraw(e.target.checked)} /> исключать часы без водоразбора</label>
         <label className="quality-check"><input type="checkbox" checked={onlyViol} onChange={(e) => setOnlyViol(e.target.checked)} /> только с нарушениями</label>
         <button className="analyze-btn" onClick={run} disabled={loading}>{loading ? "Анализ…" : "Анализ"}</button>
+        <button className="download-btn" onClick={download} disabled={loading} title="Скачать отчёт в Excel">⬇ Скачать отчёт (xlsx)</button>
       </div>
 
       {error && <p className="empty-hint" style={{ color: "var(--danger)" }}>{error}</p>}

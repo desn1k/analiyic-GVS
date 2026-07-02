@@ -478,41 +478,22 @@ def _low_threshold(ts, night_start, night_end, night_low, day_low):
     return night_low if night_start <= ts.hour < night_end else day_low
 
 
-@router.get("/gvs-quality")
-def gvs_quality(
-    date_from: str = Query(..., description="ISO datetime начала периода"),
-    date_to: str = Query(..., description="ISO datetime конца периода"),
-    chronic_pct: float = 50.0,
-    min_reliability_pct: float = 52.0,
-    night_start: int = 0,
-    night_end: int = 5,
-    day_low: float = 57.0,
-    night_low: float = 55.0,
-    high: float = 75.0,
-    exclude_no_draw: bool = True,
-    scope: str = Query("report", pattern="^(report|all)$"),
-    only_violations: bool = False,
-    limit: int = 5000,
-    db: Session = Depends(get_db),
-    device_db: Session = Depends(get_device_db),
+def _compute_gvs_quality(
+    db, device_db, dt_from, dt_to, chronic_pct, min_reliability_pct,
+    night_start, night_end, day_low, night_low, high,
+    exclude_no_draw, scope, only_violations, limit,
 ):
-    try:
-        dt_from = datetime.fromisoformat(date_from)
-        dt_to = datetime.fromisoformat(date_to)
-    except ValueError:
-        raise HTTPException(400, "Неверный формат даты (ожидается ISO)")
-
     points = {p.tu_uuid: p for p in device_db.query(DevicePoint).all()}
     outage_map = _outage_intervals(device_db)
 
     # Точки учёта из базы ГВС (недельный отчёт): анализируем именно их, а не все
     # приборные точки (среди которых ЦТП/источники). Имя и признак тупика — из отчёта.
     report_info = {}
-    for tu_id, oname, is_de in db.query(
-        TuReportRow.tu_id, TuReportRow.object_name, TuReportRow.is_dead_end
+    for tu_id, oname, oid, is_de in db.query(
+        TuReportRow.tu_id, TuReportRow.object_name, TuReportRow.object_id, TuReportRow.is_dead_end
     ).distinct():
         if tu_id and tu_id not in report_info:
-            report_info[tu_id] = {"object_name": oname, "is_dead_end": is_de}
+            report_info[tu_id] = {"object_name": oname, "object_id": oid, "is_dead_end": is_de}
     scope_ids = set(report_info) if scope == "report" else None
 
     # цепочки иерархии (для атрибуции причины)
@@ -632,6 +613,7 @@ def gvs_quality(
         result.append({
             "tu_uuid": tu,
             "object_name": name,
+            "object_id": info.get("object_id"),
             "hours_total": total,
             "hours_valid": a["valid"],
             "hours_counted": counted,
@@ -658,3 +640,114 @@ def gvs_quality(
         "count": len(result),
         "rows": result[:limit],
     }
+
+
+# Общие query-параметры анализа качества ГВС.
+def _quality_params(
+    date_from: str = Query(..., description="ISO datetime начала периода"),
+    date_to: str = Query(..., description="ISO datetime конца периода"),
+    chronic_pct: float = 50.0,
+    min_reliability_pct: float = 52.0,
+    night_start: int = 0,
+    night_end: int = 5,
+    day_low: float = 57.0,
+    night_low: float = 55.0,
+    high: float = 75.0,
+    exclude_no_draw: bool = True,
+    scope: str = Query("report", pattern="^(report|all)$"),
+    only_violations: bool = False,
+    limit: int = 100000,
+):
+    try:
+        dt_from = datetime.fromisoformat(date_from)
+        dt_to = datetime.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(400, "Неверный формат даты (ожидается ISO)")
+    return dict(
+        dt_from=dt_from, dt_to=dt_to, chronic_pct=chronic_pct,
+        min_reliability_pct=min_reliability_pct, night_start=night_start,
+        night_end=night_end, day_low=day_low, night_low=night_low, high=high,
+        exclude_no_draw=exclude_no_draw, scope=scope,
+        only_violations=only_violations, limit=limit,
+    )
+
+
+@router.get("/gvs-quality")
+def gvs_quality(
+    params: dict = Depends(_quality_params),
+    db: Session = Depends(get_db),
+    device_db: Session = Depends(get_device_db),
+):
+    return _compute_gvs_quality(db, device_db, **params)
+
+
+# Заголовки столбцов отчёта (в порядке вывода).
+_EXPORT_COLUMNS = [
+    ("object_name", "Объект"),
+    ("object_id", "ID объекта"),
+    ("tu_uuid", "ID точки учёта"),
+    ("hours_total", "Часов всего"),
+    ("hours_valid", "Достоверных часов"),
+    ("hours_counted", "Зачтено часов"),
+    ("hours_excluded_outage", "Исключено (отключения)"),
+    ("hours_excluded_noflow", "Исключено (без водоразбора)"),
+    ("reliability_pct", "Достоверность, %"),
+    ("viol_low", "Недогрев, ч"),
+    ("viol_high", "Перегрев, ч"),
+    ("viol_pct", "% нарушения"),
+    ("avg_t1", "Сред. T подачи, °C"),
+    ("verdict", "Вердикт"),
+    ("cause", "Причина"),
+]
+
+
+@router.get("/gvs-quality/export")
+def gvs_quality_export(
+    params: dict = Depends(_quality_params),
+    db: Session = Depends(get_db),
+    device_db: Session = Depends(get_device_db),
+):
+    import io
+    import openpyxl
+    from openpyxl.styles import Font
+    from fastapi.responses import StreamingResponse
+
+    data = _compute_gvs_quality(db, device_db, **params)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Качество ГВС"
+
+    df = data["date_from"].strftime("%d.%m.%Y %H:%M")
+    dt = data["date_to"].strftime("%d.%m.%Y %H:%M")
+    ws.append([f"Анализ качества ГВС за период {df} — {dt}"])
+    ws["A1"].font = Font(bold=True, size=12)
+    p = data["params"]
+    ws.append([
+        f"Пороги: день ≥{p['day_low']}°C, ночь {p['night'][0]}–{p['night'][1]} ≥{p['night_low']}°C, "
+        f"перегрев >{p['high']}°C; хроническое >{p['chronic_pct']}%; достоверность ≥{p['min_reliability_pct']}%; "
+        f"охват: {'база ГВС' if p['scope'] == 'report' else 'все приборные точки'}."
+    ])
+    ws.append([])
+
+    header_row = ws.max_row + 1
+    ws.append([title for _, title in _EXPORT_COLUMNS])
+    for cell in ws[header_row]:
+        cell.font = Font(bold=True)
+
+    for r in data["rows"]:
+        ws.append([r.get(key) for key, _ in _EXPORT_COLUMNS])
+
+    # ширины столбцов
+    for i, (_, title) in enumerate(_EXPORT_COLUMNS, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = max(12, min(46, len(title) + 4))
+    ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"gvs_quality_{data['date_from'].strftime('%Y%m%d')}_{data['date_to'].strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
