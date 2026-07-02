@@ -277,6 +277,17 @@ td.violation { color: var(--danger); font-weight: 600; }
 }
 .outage-text { font-size: 13px; }
 .outage-tag { color: var(--danger); font-weight: 600; font-size: 11px; }
+
+.hierarchy-panel { margin-top: 16px; }
+.hier-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.hier-item:last-child { border-bottom: none; }
+.hier-level { flex: 0 0 78px; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.hier-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hier-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.hier-check { display: flex; align-items: center; gap: 5px; color: var(--text); cursor: pointer; }
+.hier-check input:disabled { cursor: not-allowed; }
+.hier-nodata { color: var(--text-muted); font-size: 12px; font-style: italic; }
+.link-cell:disabled { color: var(--text-muted); cursor: default; text-decoration: none; }
 .muted-note { color: var(--text-muted); font-weight: 400; font-size: 13px; }
 
 .chart-tooltip {

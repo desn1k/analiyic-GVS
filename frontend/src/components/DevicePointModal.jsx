@@ -1,15 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, Legend,
-  CartesianGrid, ReferenceArea,
+  CartesianGrid, ReferenceArea, Brush,
 } from "recharts";
-import { getDeviceSummary, getDeviceHourly, getObjectOutages } from "../api/client";
+import {
+  getDeviceSummary, getDeviceHourly, getObjectOutages, getPointHierarchy,
+} from "../api/client";
 
 const IMPACT_COLOR = {
   "прекращение": "#dc2626",
   "ограничение": "#f59e0b",
   "иное": "#9ca3af",
 };
+
+// Палитра для наложенных линий вышестоящих ТУ.
+const OVERLAY_COLORS = ["#7c3aed", "#0891b2", "#ca8a04", "#be185d", "#15803d", "#b45309"];
+
+function nodeLabel(n) {
+  const base = n.name || n.address || n.tu_id;
+  const lvl = n.level === "source" ? "Источник" : `Ур. ${n.level}`;
+  return `${lvl}: ${base}`;
+}
 
 function fmtDT(ts) {
   if (!ts) return "—";
@@ -76,29 +87,44 @@ function fmtLoad(v) {
 }
 
 export default function DevicePointModal({ row, onClose }) {
+  const consumerUuid = row?.tu_id;
+  const [activeUuid, setActiveUuid] = useState(consumerUuid);
+  const [activeName, setActiveName] = useState(row?.registry_name || row?.object_name);
   const [summary, setSummary] = useState(null);
   const [hourly, setHourly] = useState(null);
   const [outages, setOutages] = useState([]);
+  const [hierarchy, setHierarchy] = useState([]);
+  const [overlaySel, setOverlaySel] = useState([]);     // список tu_id наложенных линий
+  const [overlays, setOverlays] = useState({});          // tu_id -> {name, hourly}
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const tuUuid = row?.tu_id;
-
+  // Смена основной точки (клик по объекту в таблице).
   useEffect(() => {
-    if (!tuUuid) return;
+    setActiveUuid(consumerUuid);
+    setActiveName(row?.registry_name || row?.object_name);
+    setOverlaySel([]);
+    setOverlays({});
+  }, [consumerUuid]);
+
+  // Данные активной точки + отключения потребителя + иерархия (по потребителю).
+  useEffect(() => {
+    if (!activeUuid) return;
     let alive = true;
     setLoading(true);
     setError(null);
     Promise.all([
-      getDeviceSummary(tuUuid),
-      getDeviceHourly(tuUuid, { limit: 20000 }),
+      getDeviceSummary(activeUuid),
+      getDeviceHourly(activeUuid, { limit: 20000 }),
       row?.object_id ? getObjectOutages(row.object_id).catch(() => []) : Promise.resolve([]),
+      getPointHierarchy(consumerUuid).then((d) => d.chain || []).catch(() => []),
     ])
-      .then(([s, h, o]) => {
+      .then(([s, h, o, ch]) => {
         if (!alive) return;
         setSummary(s);
         setHourly(h);
         setOutages(o || []);
+        setHierarchy(ch);
       })
       .catch((e) => {
         if (!alive) return;
@@ -106,16 +132,53 @@ export default function DevicePointModal({ row, onClose }) {
       })
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, [tuUuid]);
+  }, [activeUuid]);
+
+  // Догружаем почасовые ряды для выбранных наложенных ТУ.
+  useEffect(() => {
+    overlaySel.forEach((uuid) => {
+      if (overlays[uuid]) return;
+      const node = hierarchy.find((n) => n.tu_id === uuid);
+      getDeviceHourly(uuid, { limit: 20000 })
+        .then((h) => setOverlays((prev) => ({ ...prev, [uuid]: { name: node ? nodeLabel(node) : uuid, hourly: h } })))
+        .catch(() => {});
+    });
+  }, [overlaySel, hierarchy]);
 
   const hasData = summary && summary.hours_total > 0;
-  const chartData = (hourly || []).map((h) => ({
-    ts: fmtTs(h.ts),
-    "T подачи (t1)": h.valid ? h.t1 : null,
-    "T обратки (t2)": h.valid ? h.t2 : null,
-    "Объём, м³": h.valid ? (h.v1 ?? h.m1) : null,
-  }));
+
+  const chartData = useMemo(() => {
+    const base = (hourly || []).map((h) => ({
+      ts: fmtTs(h.ts),
+      "T подачи (t1)": h.valid ? h.t1 : null,
+      "T обратки (t2)": h.valid ? h.t2 : null,
+      "Объём, м³": h.valid ? (h.v1 ?? h.m1) : null,
+    }));
+    const idx = {};
+    base.forEach((d, i) => { idx[d.ts] = i; });
+    overlaySel.forEach((uuid) => {
+      const ov = overlays[uuid];
+      if (!ov) return;
+      ov.hourly.forEach((h) => {
+        const key = fmtTs(h.ts);
+        const i = idx[key];
+        if (i !== undefined) base[i][ov.name] = h.valid ? h.t1 : null;
+      });
+    });
+    return base;
+  }, [hourly, overlays, overlaySel]);
+
+  const overlayLines = overlaySel.map((uuid) => overlays[uuid]?.name).filter(Boolean);
   const hasVolume = chartData.some((d) => d["Объём, м³"] > 0);
+
+  const toggleOverlay = (uuid) => {
+    setOverlaySel((prev) => prev.includes(uuid) ? prev.filter((x) => x !== uuid) : [...prev, uuid]);
+  };
+  const switchActive = (node) => {
+    setActiveUuid(node.tu_id);
+    setActiveName(nodeLabel(node));
+    setOverlaySel((prev) => prev.filter((x) => x !== node.tu_id));
+  };
 
   // Сопоставляем интервалы отключений с метками часовой шкалы графика.
   const times = (hourly || []).map((h) => new Date(h.ts).getTime());
@@ -142,8 +205,16 @@ export default function DevicePointModal({ row, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>{row?.registry_name || row?.object_name}</h3>
+            <h3>{activeName}</h3>
             <div className="modal-sub">
+              {activeUuid !== consumerUuid && (
+                <>
+                  <button className="link-cell" onClick={() => switchActive({ tu_id: consumerUuid, level: "", name: row?.registry_name || row?.object_name })}>
+                    ← к потребителю
+                  </button>
+                  {" · "}
+                </>
+              )}
               {row?.object_name}{row?.tu_name ? ` · ${row.tu_name}` : ""}
               {row?.aiis_url && (
                 <> · <a href={row.aiis_url} target="_blank" rel="noreferrer">Открыть в АИИС ↗</a></>
@@ -169,7 +240,7 @@ export default function DevicePointModal({ row, onClose }) {
           {!loading && (error || !hasData) && (
             <p className="empty-hint">
               По этой точке учёта нет приборных данных в базе.<br />
-              Загрузите почасовой отчёт с прибора (файл «Отчёт о часовых параметрах»).
+              Загрузите файл «Ведомость учёта параметров потребления тепла в системе ГВС».
             </p>
           )}
 
@@ -219,13 +290,49 @@ export default function DevicePointModal({ row, onClose }) {
                     )}
                     <Line yAxisId="temp" type="monotone" dataKey="T подачи (t1)" stroke="#dc2626" dot={false} strokeWidth={2} connectNulls />
                     <Line yAxisId="temp" type="monotone" dataKey="T обратки (t2)" stroke="#2563eb" dot={false} strokeWidth={1.5} connectNulls />
+                    {overlayLines.map((name, i) => (
+                      <Line key={name} yAxisId="temp" type="monotone" dataKey={name}
+                        stroke={OVERLAY_COLORS[i % OVERLAY_COLORS.length]} dot={false}
+                        strokeWidth={1.5} strokeDasharray="5 3" connectNulls />
+                    ))}
+                    <Brush dataKey="ts" height={22} travellerWidth={8} stroke="#94a3b8" />
                   </ComposedChart>
                 </ResponsiveContainer>
                 <p className="footnote">
                   Горизонтальные зоны по T подачи: красная &lt;40 °C, жёлтая 40–60 °C, зелёная 60–75 °C (норматив).
                   Синие столбцы — объём, м³ (правая ось). Вертикальные цветные зоны — отключения ГВС.
-                  Разрывы линии — недостоверные часы.
+                  Разрывы линии — недостоверные часы. Ползунок снизу — масштаб (zoom) по времени.
                 </p>
+
+                {hierarchy.length > 0 && (
+                  <div className="hierarchy-panel">
+                    <h4 className="dash-section">Иерархия: вышестоящие точки учёта</h4>
+                    {hierarchy.map((n) => (
+                      <div className="hier-item" key={n.tu_id + String(n.level)}>
+                        <span className="hier-level">{n.level === "source" ? "Источник" : `Ур. ${n.level}`}</span>
+                        <span className="hier-name" title={n.address || ""}>{n.name || n.address || n.tu_id}</span>
+                        {n.has_data ? (
+                          <span className="hier-actions">
+                            <label className="hier-check">
+                              <input
+                                type="checkbox"
+                                disabled={n.tu_id === activeUuid}
+                                checked={overlaySel.includes(n.tu_id)}
+                                onChange={() => toggleOverlay(n.tu_id)}
+                              />
+                              наложить
+                            </label>
+                            <button className="link-cell" disabled={n.tu_id === activeUuid} onClick={() => switchActive(n)}>
+                              открыть график
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="hier-nodata">нет приборных данных</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {outages.length > 0 && (
                   <div className="outage-list">
