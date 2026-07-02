@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import UploadPanel from "./components/UploadPanel";
 import DashboardModal from "./components/DashboardModal";
+import GvsQualityAnalysis from "./components/GvsQualityAnalysis";
 import DynamicsChart from "./components/DynamicsChart";
 import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
@@ -129,6 +130,11 @@ export default function App() {
         {!showComparisonFilters && (
           <p className="empty-hint">Раскройте фильтры (+) и нажмите «Анализ», чтобы открыть сравнение объектов по неделям в новой вкладке.</p>
         )}
+      </section>
+
+      <section className="card">
+        <h2>Анализ качества ГВС (приборные данные)</h2>
+        <GvsQualityAnalysis />
       </section>
 
       <section className="card">

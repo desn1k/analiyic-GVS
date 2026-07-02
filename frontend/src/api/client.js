@@ -52,6 +52,9 @@ export const getObjectOutages = (objectId) =>
 export const getPointHierarchy = (tuUuid) =>
   api.get(`/api/device/points/${tuUuid}/hierarchy`).then((r) => r.data);
 
+export const getGvsQuality = (params) =>
+  api.get("/api/analytics/gvs-quality", { params }).then((r) => r.data);
+
 export const getDashboard = () => api.get("/api/dashboard").then((r) => r.data);
 
 export const clearDeviceData = () => api.delete("/api/device/data").then((r) => r.data);

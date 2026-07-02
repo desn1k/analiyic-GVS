@@ -1,11 +1,14 @@
+from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.device_database import get_device_db
-from app.models import ReportPeriod, TuReportRow, Outage, ObjectRegistry
+from app.models import (
+    ReportPeriod, TuReportRow, Outage, ObjectRegistry, DevicePoint, DeviceHourly,
+)
 from app.schemas.schemas import (
     TuRowOut, DynamicsPoint, FilterOptions, WeeklySummary,
     ObjectComparisonOut, ObjectComparisonRow, ObjectPeriodMetric, PeriodOut,
@@ -452,3 +455,137 @@ def get_object_comparison(
         ],
         objects=list(objects.values()),
     )
+
+
+# ---------------------------------------------------------------------------
+# Анализ качества ГВС по приборным почасовым данным (СанПиН с ночной поправкой).
+# Период и пороги задаются вручную. Ночь 00:00–05:00: допускается снижение до
+# −5°C (порог 55), днём −3°C (порог 57), перегрев >75. Исключаем недостоверные
+# часы и часы, попавшие в интервалы отключений ГВС.
+# ---------------------------------------------------------------------------
+def _outage_intervals(device_db: Session) -> dict[str, list]:
+    intervals: dict[str, list] = {}
+    q = device_db.query(Outage.address_norm, Outage.start_fact, Outage.end_fact).filter(
+        Outage.service_gvs == True  # noqa: E712
+    )
+    for addr, start, end in q:
+        if addr and start and end:
+            intervals.setdefault(addr, []).append((start, end))
+    return intervals
+
+
+@router.get("/gvs-quality")
+def gvs_quality(
+    date_from: str = Query(..., description="ISO datetime начала периода"),
+    date_to: str = Query(..., description="ISO datetime конца периода"),
+    chronic_pct: float = 50.0,
+    min_reliability_pct: float = 52.0,
+    night_start: int = 0,
+    night_end: int = 5,
+    day_low: float = 57.0,
+    night_low: float = 55.0,
+    high: float = 75.0,
+    only_violations: bool = False,
+    limit: int = 5000,
+    device_db: Session = Depends(get_device_db),
+):
+    try:
+        dt_from = datetime.fromisoformat(date_from)
+        dt_to = datetime.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(400, "Неверный формат даты (ожидается ISO)")
+
+    reg_names = {r.object_id: r.name for r in device_db.query(ObjectRegistry.object_id, ObjectRegistry.name).all()}
+    points = {
+        p.tu_uuid: p for p in device_db.query(DevicePoint).all()
+    }
+    outage_map = _outage_intervals(device_db)
+
+    rows = (
+        device_db.query(
+            DeviceHourly.tu_uuid, DeviceHourly.ts, DeviceHourly.t1, DeviceHourly.valid
+        )
+        .filter(DeviceHourly.ts >= dt_from, DeviceHourly.ts <= dt_to)
+        .all()
+    )
+
+    agg: dict[str, dict] = {}
+    for tu, ts, t1, valid in rows:
+        a = agg.get(tu)
+        if a is None:
+            addr = normalize_address(points[tu].object_name) if tu in points else ""
+            a = agg[tu] = {
+                "total": 0, "valid": 0, "counted": 0, "excluded_outage": 0,
+                "viol_low": 0, "viol_high": 0, "t1_sum": 0.0,
+                "intervals": outage_map.get(addr, []),
+            }
+        a["total"] += 1
+        if not valid or t1 is None:
+            continue
+        a["valid"] += 1
+        # исключаем часы отключений
+        if any(s <= ts <= e for s, e in a["intervals"]):
+            a["excluded_outage"] += 1
+            continue
+        a["counted"] += 1
+        a["t1_sum"] += t1
+        low = night_low if night_start <= ts.hour < night_end else day_low
+        if t1 < low:
+            a["viol_low"] += 1
+        elif t1 > high:
+            a["viol_high"] += 1
+
+    result = []
+    for tu, a in agg.items():
+        total = a["total"]
+        reliability = round(a["valid"] / total * 100, 1) if total else 0.0
+        counted = a["counted"]
+        viol = a["viol_low"] + a["viol_high"]
+        viol_pct = round(viol / counted * 100, 1) if counted else 0.0
+        p = points.get(tu)
+        obj_id = None  # у приборной точки нет object_id; имя берём из реестра по адресу недоступно
+        name = (p.object_name if p else None)
+
+        if reliability < min_reliability_pct:
+            verdict = "Недостаточно достоверных данных"
+        elif counted == 0:
+            verdict = "Нет зачтённых часов (всё исключено)"
+        elif viol == 0:
+            verdict = "Норма"
+        else:
+            if a["viol_high"] > a["viol_low"]:
+                verdict = "Перегрев (>75°C)"
+            else:
+                verdict = "Недогрев (ниже норматива)"
+            if viol_pct > chronic_pct:
+                verdict += f"; хроническое ({viol}/{counted} ч)"
+
+        if only_violations and verdict in ("Норма", "Недостаточно достоверных данных", "Нет зачтённых часов (всё исключено)"):
+            continue
+
+        result.append({
+            "tu_uuid": tu,
+            "object_name": name,
+            "hours_total": total,
+            "hours_valid": a["valid"],
+            "hours_counted": counted,
+            "hours_excluded_outage": a["excluded_outage"],
+            "reliability_pct": reliability,
+            "viol_low": a["viol_low"],
+            "viol_high": a["viol_high"],
+            "viol_pct": viol_pct,
+            "avg_t1": round(a["t1_sum"] / counted, 1) if counted else None,
+            "verdict": verdict,
+        })
+
+    result.sort(key=lambda x: x["viol_pct"], reverse=True)
+    return {
+        "date_from": dt_from, "date_to": dt_to,
+        "params": {
+            "chronic_pct": chronic_pct, "min_reliability_pct": min_reliability_pct,
+            "night": [night_start, night_end], "day_low": day_low,
+            "night_low": night_low, "high": high,
+        },
+        "count": len(result),
+        "rows": result[:limit],
+    }
