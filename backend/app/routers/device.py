@@ -5,7 +5,11 @@ from sqlalchemy import func, case, text, or_
 from sqlalchemy.orm import Session
 
 from app.device_database import get_device_db, device_engine
-from app.models import DevicePoint, DeviceHourly, DeviceUpload, Outage, ObjectRegistry
+import json
+
+from app.models import (
+    DevicePoint, DeviceHourly, DeviceUpload, Outage, ObjectRegistry, Hierarchy,
+)
 from app.schemas.device_schemas import (
     DevicePointOut, DeviceHourlyOut, DevicePointSummary, DeviceUploadOut, OutageOut,
 )
@@ -98,6 +102,28 @@ def point_outages(tu_uuid: str, db: Session = Depends(get_device_db)):
     )
 
 
+@router.get("/points/{tu_uuid}/hierarchy")
+def point_hierarchy(tu_uuid: str, db: Session = Depends(get_device_db)):
+    """Цепочка вышестоящих ТУ до источника; помечаем, у кого есть приборные данные."""
+    h = db.query(Hierarchy).filter(Hierarchy.consumer_tu_id == tu_uuid).first()
+    if h is None or not h.chain:
+        return {"consumer_tu_id": tu_uuid, "chain": []}
+    chain = json.loads(h.chain)
+    ids = [n["tu_id"] for n in chain if n.get("tu_id")]
+    with_data = set()
+    if ids:
+        rows = (
+            db.query(DeviceHourly.tu_uuid)
+            .filter(DeviceHourly.tu_uuid.in_(ids))
+            .distinct()
+            .all()
+        )
+        with_data = {r[0] for r in rows}
+    for n in chain:
+        n["has_data"] = n.get("tu_id") in with_data
+    return {"consumer_tu_id": tu_uuid, "chain": chain}
+
+
 @router.get("/objects/{object_id}/outages", response_model=list[OutageOut])
 def object_outages(object_id: str, db: Session = Depends(get_device_db)):
     """Отключения ГВС по объекту: мост через реестр (ФИАС/адрес)."""
@@ -138,6 +164,7 @@ def clear_device_data(db: Session = Depends(get_device_db)):
     db.query(DevicePoint).delete()
     db.query(Outage).delete()
     db.query(ObjectRegistry).delete()
+    db.query(Hierarchy).delete()
     db.query(DeviceUpload).delete()
     db.commit()
     # Освобождаем место на диске после массового удаления.

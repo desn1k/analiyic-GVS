@@ -21,6 +21,9 @@ from app.services.outage_ingest import (
 from app.services.registry_ingest import (
     looks_like_registry, run_registry_ingest_background,
 )
+from app.services.hierarchy_ingest import (
+    looks_like_hierarchy, run_hierarchy_ingest_background,
+)
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -42,7 +45,8 @@ def upload_report(
     is_device = looks_like_consumption_report(file.file)
     is_outage = (not is_device) and looks_like_outage_report(file.file)
     is_registry = (not is_device and not is_outage) and looks_like_registry(file.file)
-    if is_device or is_outage or is_registry:
+    is_hierarchy = (not is_device and not is_outage and not is_registry) and looks_like_hierarchy(file.file)
+    if is_device or is_outage or is_registry or is_hierarchy:
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
         try:
             with os.fdopen(tmp_fd, "wb") as tmp:
@@ -52,7 +56,8 @@ def upload_report(
             os.remove(tmp_path)
             raise
 
-        kind = "device" if is_device else ("outage" if is_outage else "registry")
+        kind = ("device" if is_device else "outage" if is_outage
+                else "registry" if is_registry else "hierarchy")
         upload = DeviceUpload(source_filename=file.filename, kind=kind, status="processing")
         device_db.add(upload)
         device_db.commit()
@@ -62,8 +67,10 @@ def upload_report(
             background.add_task(run_device_ingest_background, tmp_path, upload.id)
         elif is_outage:
             background.add_task(run_outage_ingest_background, tmp_path, upload.id)
-        else:
+        elif is_registry:
             background.add_task(run_registry_ingest_background, tmp_path, upload.id)
+        else:
+            background.add_task(run_hierarchy_ingest_background, tmp_path, upload.id)
         out = DeviceUploadOut.model_validate(upload)
         return {"kind": kind, "device": out.model_dump()}
 

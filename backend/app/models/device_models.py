@@ -96,6 +96,22 @@ class ObjectRegistry(DeviceBase):
     fias = Column(String)             # Код ФИАС (CV)
 
 
+class Hierarchy(DeviceBase):
+    """Цепочка связей потребитель → промежуточные ТУ → источник.
+
+    chain — JSON-список узлов от потребителя вверх к источнику:
+    [{level, tu_id, name, address, type}]. Ключ — tu_id потребителя.
+    """
+
+    __tablename__ = "hierarchy"
+
+    id = Column(Integer, primary_key=True)
+    upload_id = Column(Integer, ForeignKey("device_uploads.id"))
+    consumer_tu_id = Column(String, nullable=False, index=True, unique=True)
+    object_id = Column(String, index=True)
+    chain = Column(String)  # JSON
+
+
 class DeviceHourly(DeviceBase):
     """Одна почасовая запись прибора. Сырые данные для ML.
 
