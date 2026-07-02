@@ -103,25 +103,46 @@ def _to_out(row: TuReportRow) -> TuRowOut:
     return out
 
 
-def _outage_map(device_db: Session) -> dict[str, set]:
-    """Карта нормализованный_адрес -> множество типов отключений (только ГВС)."""
-    result: dict[str, set] = {}
-    q = device_db.query(Outage.address_norm, Outage.impact).filter(
+def _outage_index(device_db: Session):
+    """Индексы отключений ГВС: по ФИАС и по нормализованному адресу."""
+    fias_map: dict[str, set] = {}
+    addr_map: dict[str, set] = {}
+    q = device_db.query(Outage.fias, Outage.address_norm, Outage.impact).filter(
         Outage.service_gvs == True  # noqa: E712
     )
-    for addr, impact in q:
-        if not addr:
-            continue
-        result.setdefault(addr, set()).add(impact or "иное")
-    return result
+    for fias, addr, impact in q:
+        imp = impact or "иное"
+        if fias:
+            fias_map.setdefault(fias, set()).add(imp)
+        if addr:
+            addr_map.setdefault(addr, set()).add(imp)
+    return fias_map, addr_map
 
 
-def _tag_outages(rows: list[TuRowOut], omap: dict[str, set]) -> None:
+def _outage_maps(device_db: Session):
+    """Готовит связь object_id -> типы отключений через реестр (ФИАС/адрес),
+    а также прямую карту по адресу (запасной вариант без реестра)."""
+    fias_map, addr_map = _outage_index(device_db)
+    by_object: dict[str, set] = {}
+    for reg in device_db.query(ObjectRegistry).all():
+        impacts = set()
+        if reg.fias and reg.fias in fias_map:
+            impacts |= fias_map[reg.fias]
+        if reg.address_norm and reg.address_norm in addr_map:
+            impacts |= addr_map[reg.address_norm]
+        if impacts:
+            by_object[reg.object_id] = impacts
+    return by_object, addr_map
+
+
+def _tag_outages(rows: list[TuRowOut], maps) -> None:
+    by_object, addr_map = maps
     for r in rows:
-        addr = normalize_address(r.object_name)
-        if not is_matchable_address(addr):
-            continue
-        impacts = omap.get(addr)
+        impacts = by_object.get(r.object_id)
+        if not impacts:
+            addr = normalize_address(r.object_name)
+            if is_matchable_address(addr):
+                impacts = addr_map.get(addr)
         if impacts:
             r.has_outage = True
             r.outage_impacts = ", ".join(sorted(impacts))
@@ -174,7 +195,7 @@ def list_tu_rows(
     q = _apply_filters(q, object_type, is_dead_end, system_type, source_name, None)
     db_rows = _filter_by_search(q.all(), search)
     rows = [_to_out(r) for r in db_rows]
-    _tag_outages(rows, _outage_map(device_db))
+    _tag_outages(rows, _outage_maps(device_db))
     _tag_registry(rows, _registry_map(device_db))
 
     if min_violation_pct is not None:
@@ -222,7 +243,7 @@ def list_all_tu_rows(
     db_rows = list(by_tu.values())
 
     rows = [_to_out(r) for r in db_rows]
-    _tag_outages(rows, _outage_map(device_db))
+    _tag_outages(rows, _outage_maps(device_db))
     _tag_registry(rows, _registry_map(device_db))
 
     if min_violation_pct is not None:

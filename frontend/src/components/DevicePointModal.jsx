@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, ComposedChart, Line, Bar, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ReferenceArea,
 } from "recharts";
-import { getDeviceSummary, getDeviceHourly, getDevicePointOutages } from "../api/client";
+import { getDeviceSummary, getDeviceHourly, getObjectOutages } from "../api/client";
 
 const IMPACT_COLOR = {
   "прекращение": "#dc2626",
@@ -47,7 +47,7 @@ export default function DevicePointModal({ row, onClose }) {
     Promise.all([
       getDeviceSummary(tuUuid),
       getDeviceHourly(tuUuid, { limit: 20000 }),
-      getDevicePointOutages(tuUuid).catch(() => []),
+      row?.object_id ? getObjectOutages(row.object_id).catch(() => []) : Promise.resolve([]),
     ])
       .then(([s, h, o]) => {
         if (!alive) return;

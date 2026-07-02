@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, case, text
+from sqlalchemy import func, case, text, or_
 from sqlalchemy.orm import Session
 
 from app.device_database import get_device_db, device_engine
@@ -93,6 +93,26 @@ def point_outages(tu_uuid: str, db: Session = Depends(get_device_db)):
     return (
         db.query(Outage)
         .filter(Outage.address_norm == addr, Outage.service_gvs == True)  # noqa: E712
+        .order_by(Outage.start_fact)
+        .all()
+    )
+
+
+@router.get("/objects/{object_id}/outages", response_model=list[OutageOut])
+def object_outages(object_id: str, db: Session = Depends(get_device_db)):
+    """Отключения ГВС по объекту: мост через реестр (ФИАС/адрес)."""
+    reg = db.query(ObjectRegistry).filter(ObjectRegistry.object_id == object_id).first()
+    conds = []
+    if reg:
+        if reg.fias:
+            conds.append(Outage.fias == reg.fias)
+        if reg.address_norm:
+            conds.append(Outage.address_norm == reg.address_norm)
+    if not conds:
+        return []
+    return (
+        db.query(Outage)
+        .filter(Outage.service_gvs == True, or_(*conds))  # noqa: E712
         .order_by(Outage.start_fact)
         .all()
     )

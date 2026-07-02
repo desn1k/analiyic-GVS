@@ -46,6 +46,9 @@ export const getDeviceUpload = (id) =>
 export const getDevicePointOutages = (tuUuid) =>
   api.get(`/api/device/points/${tuUuid}/outages`).then((r) => r.data);
 
+export const getObjectOutages = (objectId) =>
+  api.get(`/api/device/objects/${objectId}/outages`).then((r) => r.data);
+
 export const getDashboard = () => api.get("/api/dashboard").then((r) => r.data);
 
 export const clearDeviceData = () => api.delete("/api/device/data").then((r) => r.data);
