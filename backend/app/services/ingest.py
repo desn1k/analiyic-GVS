@@ -30,13 +30,16 @@ def ingest_report(db: Session, file, filename: str) -> ReportPeriod:
     period_start, period_end, generated_at, rows = parse_report(file)
     rows = [r for r in rows if extract_city(r["object_name"]) == ANALYZED_CITY]
 
+    # Дедуп по периоду (без учёта имени файла): один и тот же период,
+    # загруженный под другим именем, заменяет предыдущий, а не дублирует.
     existing = (
         db.query(ReportPeriod)
-        .filter_by(period_start=period_start, period_end=period_end, source_filename=filename)
-        .first()
+        .filter_by(period_start=period_start, period_end=period_end)
+        .all()
     )
+    for e in existing:
+        db.delete(e)
     if existing:
-        db.delete(existing)
         db.flush()
 
     period = ReportPeriod(
