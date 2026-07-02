@@ -86,7 +86,7 @@ export default function TuTable({ rows, sortBy, order, onSort }) {
                 <td className="wrap-cell" title={r.source_name}>{r.source_name || "—"}</td>
                 <td className="wrap-cell">{r.object_type}</td>
                 <td>{fmtDeadEnd(r.is_dead_end)}</td>
-                <td>{r.system_type || "—"}</td>
+                <td title={r.heat_system ? "Из реестра объектов" : ""}>{r.heat_system || r.system_type || "—"}</td>
                 <td>{fmtNum(r.avg_temp_gvs)}</td>
                 <td>{fmtNum(r.volume_total)}</td>
                 <td className={r.violation_pct > 0 ? "violation" : ""}>{fmtNum(r.violation_pct)}%</td>

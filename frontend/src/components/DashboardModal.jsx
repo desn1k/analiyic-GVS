@@ -64,6 +64,7 @@ export default function DashboardModal({ onClose }) {
                 <Stat label="Часов без T подачи" value={num(d.hours_no_t1)} danger={d.hours_no_t1 > 0} />
                 <Stat label="Точек без данных" value={num(d.points_without_valid)} danger={d.points_without_valid > 0} />
                 <Stat label="Отключений ГВС" value={num(d.outages_gvs)} />
+                <Stat label="Паспортов (реестр)" value={num(d.registry_total)} />
                 <Stat label="Диапазон" value={d.ts_min ? `${fmtDateTime(d.ts_min)} — ${fmtDateTime(d.ts_max)}` : "—"} />
               </div>
 

@@ -45,6 +45,13 @@ class TuRowOut(BaseModel):
     probable_cause: str = ""
     has_outage: bool = False
     outage_impacts: str = ""
+    registry_name: Optional[str] = None
+    heat_system: Optional[str] = None
+    design_t_supply: Optional[float] = None
+    design_t_return: Optional[float] = None
+    q_heating: Optional[float] = None
+    q_gvs: Optional[float] = None
+    aiis_url: Optional[str] = None
 
 
 class DynamicsPoint(BaseModel):

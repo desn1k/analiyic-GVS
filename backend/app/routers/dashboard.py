@@ -6,6 +6,7 @@ from app.database import get_db
 from app.device_database import get_device_db
 from app.models import (
     ReportPeriod, TuReportRow, DeviceUpload, DevicePoint, DeviceHourly, Outage,
+    ObjectRegistry,
 )
 from app.schemas.device_schemas import DeviceUploadOut
 
@@ -78,6 +79,7 @@ def get_dashboard(db: Session = Depends(get_db), ddb: Session = Depends(get_devi
     points_no_data.sort(key=lambda x: (x["object_name"] or ""))
     points_without_valid = len(points_no_data)
 
+    registry_total = ddb.query(func.count(ObjectRegistry.id)).scalar() or 0
     outages_total = ddb.query(func.count(Outage.id)).scalar() or 0
     outages_gvs = ddb.query(func.count(Outage.id)).filter(Outage.service_gvs == True).scalar() or 0  # noqa: E712
 
@@ -100,6 +102,7 @@ def get_dashboard(db: Session = Depends(get_db), ddb: Session = Depends(get_devi
             "hours_no_t1": hours_no_t1,
             "valid_pct": round(hours_valid / hours_total * 100, 1) if hours_total else 0.0,
             "points_without_valid": points_without_valid,
+            "registry_total": registry_total,
             "outages_total": outages_total,
             "outages_gvs": outages_gvs,
             "ts_min": dev_ts[0],

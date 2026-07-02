@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.device_database import get_device_db
-from app.models import ReportPeriod, TuReportRow, Outage
+from app.models import ReportPeriod, TuReportRow, Outage, ObjectRegistry
 from app.schemas.schemas import (
     TuRowOut, DynamicsPoint, FilterOptions, WeeklySummary,
     ObjectComparisonOut, ObjectComparisonRow, ObjectPeriodMetric, PeriodOut,
@@ -133,6 +133,25 @@ def _filter_by_outage(rows: list[TuRowOut], outage: str) -> list[TuRowOut]:
     return [r for r in rows if outage in (r.outage_impacts or "").split(", ")]
 
 
+def _registry_map(device_db: Session) -> dict:
+    """Карта object_id -> паспорт объекта из реестра."""
+    return {r.object_id: r for r in device_db.query(ObjectRegistry).all()}
+
+
+def _tag_registry(rows: list[TuRowOut], rmap: dict) -> None:
+    for r in rows:
+        reg = rmap.get(r.object_id)
+        if not reg:
+            continue
+        r.registry_name = reg.name
+        r.heat_system = reg.heat_system
+        r.design_t_supply = reg.design_t_supply
+        r.design_t_return = reg.design_t_return
+        r.q_heating = reg.q_heating
+        r.q_gvs = reg.q_gvs
+        r.aiis_url = reg.aiis_url
+
+
 @router.get("/periods/{period_id}/tu", response_model=list[TuRowOut])
 def list_tu_rows(
     period_id: int,
@@ -156,6 +175,7 @@ def list_tu_rows(
     db_rows = _filter_by_search(q.all(), search)
     rows = [_to_out(r) for r in db_rows]
     _tag_outages(rows, _outage_map(device_db))
+    _tag_registry(rows, _registry_map(device_db))
 
     if min_violation_pct is not None:
         rows = [r for r in rows if r.violation_pct >= min_violation_pct]
@@ -203,6 +223,7 @@ def list_all_tu_rows(
 
     rows = [_to_out(r) for r in db_rows]
     _tag_outages(rows, _outage_map(device_db))
+    _tag_registry(rows, _registry_map(device_db))
 
     if min_violation_pct is not None:
         rows = [r for r in rows if r.violation_pct >= min_violation_pct]

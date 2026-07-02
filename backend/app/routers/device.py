@@ -5,7 +5,7 @@ from sqlalchemy import func, case, text
 from sqlalchemy.orm import Session
 
 from app.device_database import get_device_db, device_engine
-from app.models import DevicePoint, DeviceHourly, DeviceUpload, Outage
+from app.models import DevicePoint, DeviceHourly, DeviceUpload, Outage, ObjectRegistry
 from app.schemas.device_schemas import (
     DevicePointOut, DeviceHourlyOut, DevicePointSummary, DeviceUploadOut, OutageOut,
 )
@@ -117,6 +117,7 @@ def clear_device_data(db: Session = Depends(get_device_db)):
     hours = db.query(DeviceHourly).delete()
     db.query(DevicePoint).delete()
     db.query(Outage).delete()
+    db.query(ObjectRegistry).delete()
     db.query(DeviceUpload).delete()
     db.commit()
     # Освобождаем место на диске после массового удаления.

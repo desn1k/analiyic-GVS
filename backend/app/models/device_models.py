@@ -73,6 +73,26 @@ class Outage(DeviceBase):
     )
 
 
+class ObjectRegistry(DeviceBase):
+    """Паспорт объекта из реестра АИИС. Ключ — object_id (= object_id отчёта)."""
+
+    __tablename__ = "object_registry"
+
+    id = Column(Integer, primary_key=True)
+    upload_id = Column(Integer, ForeignKey("device_uploads.id"))
+    object_id = Column(String, nullable=False, index=True, unique=True)
+    name = Column(String)              # Название объекта (AD)
+    address = Column(String)           # Адрес объекта (F)
+    address_norm = Column(String, index=True)
+    design_t_supply = Column(Float)    # Расч. температура прямой (J)
+    design_t_return = Column(Float)    # Расч. температура обратной (K)
+    heat_system = Column(String)       # Система теплоснабжения (Z)
+    q_heating = Column(Float)          # Qот (AE)
+    q_gvs = Column(Float)              # Qгвс (AF)
+    aiis_url = Column(String)          # Ссылка (CX)
+    fias = Column(String)             # Код ФИАС (CV)
+
+
 class DeviceHourly(DeviceBase):
     """Одна почасовая запись прибора. Сырые данные для ML.
 

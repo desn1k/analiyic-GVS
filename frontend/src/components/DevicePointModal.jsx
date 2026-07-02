@@ -26,6 +26,10 @@ function fmtNum(v) {
   return v === null || v === undefined ? "—" : Number(v).toFixed(1);
 }
 
+function fmtLoad(v) {
+  return v === null || v === undefined ? "—" : Number(v).toFixed(3);
+}
+
 export default function DevicePointModal({ row, onClose }) {
   const [summary, setSummary] = useState(null);
   const [hourly, setHourly] = useState(null);
@@ -87,13 +91,28 @@ export default function DevicePointModal({ row, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>{row?.object_name}</h3>
-            <div className="modal-sub">{row?.tu_name || "ТУ"} · приборные (почасовые) данные</div>
+            <h3>{row?.registry_name || row?.object_name}</h3>
+            <div className="modal-sub">
+              {row?.object_name}{row?.tu_name ? ` · ${row.tu_name}` : ""}
+              {row?.aiis_url && (
+                <> · <a href={row.aiis_url} target="_blank" rel="noreferrer">Открыть в АИИС ↗</a></>
+              )}
+            </div>
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
         <div className="modal-body">
+          {(row?.heat_system || row?.design_t_supply || row?.q_gvs) && (
+            <div className="device-stats" style={{ marginBottom: 8 }}>
+              {row?.heat_system && <Stat label="Система теплоснабжения" value={row.heat_system} />}
+              {row?.design_t_supply != null && (
+                <Stat label="Расч. T прям./обр." value={`${fmtNum(row.design_t_supply)} / ${fmtNum(row.design_t_return)} °C`} />
+              )}
+              {row?.q_gvs != null && <Stat label="Qгвс, Гкал/ч" value={fmtLoad(row.q_gvs)} />}
+              {row?.q_heating != null && <Stat label="Qот, Гкал/ч" value={fmtLoad(row.q_heating)} />}
+            </div>
+          )}
           {loading && <p className="empty-hint">Загрузка приборных данных…</p>}
 
           {!loading && (error || !hasData) && (
