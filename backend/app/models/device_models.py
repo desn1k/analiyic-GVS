@@ -121,6 +121,8 @@ class DeviceHourly(DeviceBase):
     m2 = Column(Float)
     m3 = Column(Float)
     m4 = Column(Float)
+    v1 = Column(Float)  # объём, м³ (формат «Ведомость учёта потребления»)
+    v2 = Column(Float)
     p1 = Column(Float)
     p2 = Column(Float)
     p3 = Column(Float)

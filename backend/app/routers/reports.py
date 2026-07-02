@@ -13,7 +13,8 @@ from app.schemas.schemas import PeriodOut
 from app.schemas.device_schemas import DeviceUploadOut
 from app.services.ingest import ingest_report
 from app.services.device_ingest import (
-    looks_like_device_report, run_device_ingest_background,
+    looks_like_device_report, looks_like_consumption_report,
+    run_device_ingest_background,
 )
 from app.services.outage_ingest import (
     looks_like_outage_report, run_outage_ingest_background,
@@ -40,9 +41,10 @@ def upload_report(
     # прокси (504/502). Сохраняем во временный файл и разбираем в фоне, а фронт
     # опрашивает статус.
     is_device = looks_like_device_report(file.file)
-    is_outage = (not is_device) and looks_like_outage_report(file.file)
-    is_registry = (not is_device and not is_outage) and looks_like_registry(file.file)
-    if is_device or is_outage or is_registry:
+    is_consumption = (not is_device) and looks_like_consumption_report(file.file)
+    is_outage = (not is_device and not is_consumption) and looks_like_outage_report(file.file)
+    is_registry = (not is_device and not is_consumption and not is_outage) and looks_like_registry(file.file)
+    if is_device or is_consumption or is_outage or is_registry:
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
         try:
             with os.fdopen(tmp_fd, "wb") as tmp:
@@ -52,18 +54,18 @@ def upload_report(
             os.remove(tmp_path)
             raise
 
-        kind = "device" if is_device else ("outage" if is_outage else "registry")
+        kind = "device" if (is_device or is_consumption) else ("outage" if is_outage else "registry")
         upload = DeviceUpload(source_filename=file.filename, kind=kind, status="processing")
         device_db.add(upload)
         device_db.commit()
         device_db.refresh(upload)
 
-        runner = (
-            run_device_ingest_background if is_device
-            else run_outage_ingest_background if is_outage
-            else run_registry_ingest_background
-        )
-        background.add_task(runner, tmp_path, upload.id)
+        if is_device or is_consumption:
+            background.add_task(run_device_ingest_background, tmp_path, upload.id, is_consumption)
+        elif is_outage:
+            background.add_task(run_outage_ingest_background, tmp_path, upload.id)
+        else:
+            background.add_task(run_registry_ingest_background, tmp_path, upload.id)
         out = DeviceUploadOut.model_validate(upload)
         return {"kind": kind, "device": out.model_dump()}
 

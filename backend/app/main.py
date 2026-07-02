@@ -28,21 +28,30 @@ def _ensure_device_columns():
         if "kind" not in existing:
             conn.execute(text("ALTER TABLE device_uploads ADD COLUMN kind VARCHAR DEFAULT 'device'"))
 
+        if "device_hourly" in tables:
+            hcols = {c["name"] for c in insp.get_columns("device_hourly")}
+            if "v1" not in hcols:
+                conn.execute(text("ALTER TABLE device_hourly ADD COLUMN v1 FLOAT"))
+            if "v2" not in hcols:
+                conn.execute(text("ALTER TABLE device_hourly ADD COLUMN v2 FLOAT"))
+
         # Уникальные индексы для дедупа при повторной загрузке. Перед созданием
         # убираем уже накопленные дубли (оставляем строку с максимальным id).
-        if "device_hourly" in tables:
-            idx = {i["name"] for i in insp.get_indexes("device_hourly")}
-            if "uq_device_hourly_tu_ts" not in idx:
-                conn.execute(text(
-                    "DELETE FROM device_hourly WHERE id NOT IN "
-                    "(SELECT MAX(id) FROM device_hourly GROUP BY tu_uuid, ts)"
-                ))
-                conn.execute(text(
-                    "CREATE UNIQUE INDEX uq_device_hourly_tu_ts ON device_hourly(tu_uuid, ts)"
-                ))
-        if "outages" in tables:
-            idx = {i["name"] for i in insp.get_indexes("outages")}
-            if "uq_outage_key" not in idx:
+    def _index_exists(conn, name):
+        return conn.execute(text(
+            "SELECT 1 FROM sqlite_master WHERE type='index' AND name=:n"
+        ), {"n": name}).first() is not None
+
+    with device_engine.begin() as conn:
+        if "device_hourly" in tables and not _index_exists(conn, "uq_device_hourly_tu_ts"):
+            conn.execute(text(
+                "DELETE FROM device_hourly WHERE id NOT IN "
+                "(SELECT MAX(id) FROM device_hourly GROUP BY tu_uuid, ts)"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX uq_device_hourly_tu_ts ON device_hourly(tu_uuid, ts)"
+            ))
+        if "outages" in tables and not _index_exists(conn, "uq_outage_key"):
                 # COALESCE — иначе строки с NULL (напр. без даты) считаются
                 # уникальными и дублируются при повторной загрузке.
                 key = ("COALESCE(number,''), address_norm, "

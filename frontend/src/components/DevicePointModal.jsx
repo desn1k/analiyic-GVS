@@ -113,9 +113,9 @@ export default function DevicePointModal({ row, onClose }) {
     ts: fmtTs(h.ts),
     "T подачи (t1)": h.valid ? h.t1 : null,
     "T обратки (t2)": h.valid ? h.t2 : null,
-    "Объём (M1), т": h.valid ? h.m1 : null,
+    "Объём, м³": h.valid ? (h.v1 ?? h.m1) : null,
   }));
-  const hasVolume = chartData.some((d) => d["Объём (M1), т"] > 0);
+  const hasVolume = chartData.some((d) => d["Объём, м³"] > 0);
 
   // Сопоставляем интервалы отключений с метками часовой шкалы графика.
   const times = (hourly || []).map((h) => new Date(h.ts).getTime());
@@ -215,7 +215,7 @@ export default function DevicePointModal({ row, onClose }) {
                     <Tooltip content={<OutageTooltip outageByLabel={outageByLabel} />} />
                     <Legend />
                     {hasVolume && (
-                      <Bar yAxisId="vol" dataKey="Объём (M1), т" fill="#93c5fd" barSize={6} />
+                      <Bar yAxisId="vol" dataKey="Объём, м³" fill="#93c5fd" barSize={6} />
                     )}
                     <Line yAxisId="temp" type="monotone" dataKey="T подачи (t1)" stroke="#dc2626" dot={false} strokeWidth={2} connectNulls />
                     <Line yAxisId="temp" type="monotone" dataKey="T обратки (t2)" stroke="#2563eb" dot={false} strokeWidth={1.5} connectNulls />
@@ -223,7 +223,7 @@ export default function DevicePointModal({ row, onClose }) {
                 </ResponsiveContainer>
                 <p className="footnote">
                   Горизонтальные зоны по T подачи: красная &lt;40 °C, жёлтая 40–60 °C, зелёная 60–75 °C (норматив).
-                  Синие столбцы — объём M1, т (правая ось). Вертикальные цветные зоны — отключения ГВС.
+                  Синие столбцы — объём, м³ (правая ось). Вертикальные цветные зоны — отключения ГВС.
                   Разрывы линии — недостоверные часы.
                 </p>
 

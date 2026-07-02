@@ -26,6 +26,8 @@ class DeviceHourlyOut(BaseModel):
     t5: Optional[float] = None
     m1: Optional[float] = None
     m2: Optional[float] = None
+    v1: Optional[float] = None
+    v2: Optional[float] = None
     p1: Optional[float] = None
     q1: Optional[float] = None
     ns: Optional[float] = None
