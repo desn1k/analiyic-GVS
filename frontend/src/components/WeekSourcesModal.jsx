@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis,
-  Tooltip, CartesianGrid,
+  Tooltip, CartesianGrid, Legend, LabelList,
 } from "recharts";
 import { getWeekSources, getSourceDynamics, getWeekSourceObjects } from "../api/client";
 import { formatPeriod } from "../utils/format";
@@ -51,7 +51,9 @@ export default function WeekSourcesModal({ period, onClose }) {
 
   const topChart = filtered.slice(0, 15).map((s) => ({
     name: s.source_name.length > 22 ? s.source_name.slice(0, 21) + "…" : s.source_name,
-    "% некачества": s.violation_pct,
+    "Объём ГВС, м³": s.volume_total,
+    "Объём некачества, м³": s.violation_volume,
+    objectsWithViolation: s.objects_with_violation,
   }));
   const dynChart = (dyn || []).map((p) => ({
     period: formatPeriod(p.period_start, p.period_end),
@@ -63,8 +65,8 @@ export default function WeekSourcesModal({ period, onClose }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3>Разбивка по источникам</h3>
-            <div className="modal-sub">Неделя: {formatPeriod(period.period_start, period.period_end)}</div>
+            <h3>Анализ недели {formatPeriod(period.period_start, period.period_end)}</h3>
+            <div className="modal-sub">Разбивка по источникам (ЦТП/котельные)</div>
           </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
@@ -91,18 +93,30 @@ export default function WeekSourcesModal({ period, onClose }) {
               </div>
 
               {filtered.length > 0 && (
-                <ResponsiveContainer width="100%" height={Math.max(160, topChart.length * 22)}>
-                  <BarChart data={topChart} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <ResponsiveContainer width="100%" height={Math.max(200, topChart.length * 34)}>
+                  <BarChart data={topChart} layout="vertical" margin={{ left: 20, right: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#eef1f6" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} unit="%" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} unit=" м³" />
                     <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10 }} />
-                    <Tooltip />
-                    <Bar dataKey="% некачества" fill="#dc2626" barSize={12} />
+                    <Tooltip formatter={(v, name) => [fmtNum(v), name]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="Объём ГВС, м³" fill="#93c5fd" barSize={10} />
+                    <Bar dataKey="Объём некачества, м³" fill="#dc2626" barSize={10}>
+                      <LabelList
+                        dataKey="objectsWithViolation"
+                        position="right"
+                        formatter={(v) => (v ? `${v} объект.` : "")}
+                        style={{ fontSize: 10, fill: "var(--text-muted)" }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
 
-              <p className="footnote">Нажмите на источник — раскроется список объектов; по объекту откроется график.</p>
+              <p className="footnote">
+                Синий столбец — общий объём ГВС источника, красный — объём некачественной поставки; подпись справа — сколько объектов с нарушением.
+                Нажмите на источник ниже — раскроется список объектов; по объекту откроется график.
+              </p>
 
               <div className="table-wrap" style={{ maxHeight: "50vh", marginTop: 10 }}>
                 <table>
