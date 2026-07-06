@@ -827,3 +827,43 @@ def source_dynamics(
             "violation_pct": round(_cap_pct(viol / vol * 100), 2) if vol else 0.0,
         })
     return {"source_name": source_name, "points": points}
+
+
+@router.get("/weekly-summary/{period_id}/source-objects")
+def week_source_objects(
+    period_id: int,
+    source_name: str,
+    object_type: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
+    system_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Объекты одного источника за неделю (для раскрытия в разбивке по источникам)."""
+    q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
+    if source_name == "— без источника":
+        q = q.filter((TuReportRow.source_name == None) | (TuReportRow.source_name == ""))  # noqa: E711
+    else:
+        q = q.filter(TuReportRow.source_name == source_name)
+    q = _apply_filters(q, object_type, is_dead_end, system_type, None, None)
+    rows = q.all()
+
+    by_obj: dict = {}
+    for r in rows:
+        o = by_obj.setdefault(r.object_id, {
+            "object_id": r.object_id, "object_name": r.object_name,
+            "tu_id": r.tu_id, "volume": 0.0, "viol": 0.0,
+        })
+        o["volume"] += r.volume_total or 0
+        o["viol"] += _violation_volume(r)
+        if (r.volume_total or 0) > 0 and not o["tu_id"]:
+            o["tu_id"] = r.tu_id
+
+    objects = [{
+        "object_id": o["object_id"],
+        "object_name": o["object_name"],
+        "tu_id": o["tu_id"],
+        "volume_total": round(o["volume"], 2),
+        "violation_pct": round(_cap_pct(o["viol"] / o["volume"] * 100), 2) if o["volume"] else 0.0,
+    } for o in by_obj.values()]
+    objects.sort(key=lambda x: x["violation_pct"], reverse=True)
+    return {"source_name": source_name, "objects": objects}

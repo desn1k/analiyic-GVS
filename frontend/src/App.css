@@ -384,6 +384,17 @@ td.violation { color: var(--danger); font-weight: 600; }
 .glossary-item:last-child { border-bottom: none; }
 .glossary-item dt { font-weight: 650; font-size: 14px; margin-bottom: 3px; }
 .glossary-item dd { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
+
+/* Разбивка по источникам — фильтр и раскрытые объекты */
+.source-filter {
+  width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; margin-bottom: 12px; background: var(--surface);
+}
+.source-objects { display: flex; flex-direction: column; gap: 4px; }
+.source-object-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 6px; }
+.source-object-row:hover { background: #eef3fe; border-radius: 6px; }
+.source-object-pct { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.source-object-pct.violation { color: var(--danger); }
 .link-cell:disabled { color: var(--text-muted); cursor: default; text-decoration: none; }
 .muted-note { color: var(--text-muted); font-weight: 400; font-size: 13px; }
 
