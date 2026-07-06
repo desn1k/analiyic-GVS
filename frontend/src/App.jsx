@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import UploadPanel from "./components/UploadPanel";
-import DashboardModal from "./components/DashboardModal";
+import DataTab from "./components/DataTab";
 import GvsQualityAnalysis from "./components/GvsQualityAnalysis";
 import WeekSourcesModal from "./components/WeekSourcesModal";
 import DynamicsChart from "./components/DynamicsChart";
@@ -8,7 +7,10 @@ import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
 import WeeklySummaryTable from "./components/WeeklySummaryTable";
 import ObjectComparisonTable from "./components/ObjectComparisonTable";
-import { getPeriods, getDynamics, getFilters, getAllTuRows, getWeeklySummary, getObjectComparison } from "./api/client";
+import {
+  getPeriods, getDynamics, getFilters, getAllTuRows, getWeeklySummary,
+  getObjectComparison, getDashboard,
+} from "./api/client";
 import "./App.css";
 
 const searchParams = new URLSearchParams(window.location.search);
@@ -17,7 +19,16 @@ const initialComparisonFilters = Object.fromEntries(
   [...searchParams.entries()].filter(([k]) => k !== "view")
 );
 
+const TABS = [
+  { key: "data", label: "Данные" },
+  { key: "quality", label: "Качество ГВС" },
+  { key: "objects", label: "Объекты" },
+  { key: "reports", label: "Отчёты (недельные)" },
+];
+
 export default function App() {
+  const [tab, setTab] = useState("quality");
+  const [dashboard, setDashboard] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [dynamics, setDynamics] = useState([]);
   const [filters, setFilters] = useState(null);
@@ -29,36 +40,34 @@ export default function App() {
   const [objectComparison, setObjectComparison] = useState(null);
   const [comparisonFilterValue, setComparisonFilterValue] = useState(initialComparisonFilters);
   const [showComparisonFilters, setShowComparisonFilters] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false);
   const [weekSources, setWeekSources] = useState(null);
 
   const reload = useCallback(async () => {
-    const ps = await getPeriods();
+    const [ps, dash] = await Promise.all([getPeriods(), getDashboard().catch(() => null)]);
     setPeriods(ps);
+    setDashboard(dash);
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Первый заход без данных — открываем вкладку «Данные».
   useEffect(() => {
-    // Опции фильтров берём из самого свежего периода (списки одинаковы по базе).
+    if (!dashboard) return;
+    const has = (dashboard.device?.points_total || 0) > 0 || (dashboard.report?.periods_total || 0) > 0;
+    if (!has) setTab("data");
+  }, [dashboard]);
+
+  useEffect(() => {
     if (periods.length) getFilters(periods[periods.length - 1].id).then(setFilters);
   }, [periods]);
 
   useEffect(() => {
-    getAllTuRows({ ...filterValue, sort_by: sortBy, order }).then(setTuRows);
+    getAllTuRows({ ...filterValue, sort_by: sortBy, order }).then(setTuRows).catch(() => {});
   }, [filterValue, sortBy, order]);
 
-  useEffect(() => {
-    getDynamics(filterValue).then(setDynamics);
-  }, [filterValue]);
-
-  useEffect(() => {
-    getWeeklySummary(filterValue).then(setWeeklySummary);
-  }, [filterValue]);
-
-  useEffect(() => {
-    getObjectComparison(comparisonFilterValue).then(setObjectComparison);
-  }, [comparisonFilterValue]);
+  useEffect(() => { getDynamics(filterValue).then(setDynamics).catch(() => {}); }, [filterValue]);
+  useEffect(() => { getWeeklySummary(filterValue).then(setWeeklySummary).catch(() => {}); }, [filterValue]);
+  useEffect(() => { getObjectComparison(comparisonFilterValue).then(setObjectComparison).catch(() => {}); }, [comparisonFilterValue]);
 
   const handleSort = (key) => {
     if (key === sortBy) setOrder(order === "desc" ? "asc" : "desc");
@@ -70,13 +79,12 @@ export default function App() {
     window.open(`${window.location.pathname}?${params.toString()}`, "_blank");
   };
 
+  // Отдельное окно сравнения объектов (открывается в новой вкладке).
   if (isAnalysisView) {
     const summary = describeFilters(comparisonFilterValue);
     return (
       <div className="app">
-        <header>
-          <h1>Сравнение объектов по неделям</h1>
-        </header>
+        <header><h1>Сравнение объектов по неделям</h1></header>
         <section className="card">
           {summary && <p className="applied-filters">Применённые фильтры: {summary}</p>}
           <ObjectComparisonTable data={objectComparison} />
@@ -85,69 +93,84 @@ export default function App() {
     );
   }
 
+  const hasData = (dashboard?.device?.points_total || 0) > 0 || (dashboard?.report?.periods_total || 0) > 0;
+
   return (
     <div className="app">
       <header>
         <h1>Аналитика качества ГВС</h1>
-        <div className="header-actions">
-          <button type="button" className="dashboard-btn" onClick={() => setShowDashboard(true)}>
-            📊 Дашборд
-          </button>
-          <UploadPanel onUploaded={reload} />
-        </div>
       </header>
 
-      {showDashboard && <DashboardModal onClose={() => setShowDashboard(false)} />}
-
-      <section className="card">
-        <h2>Динамика во времени</h2>
-        <DynamicsChart data={dynamics} />
-      </section>
-
-      <section className="card">
-        <h2>Сводка по неделям</h2>
-        <WeeklySummaryTable data={weeklySummary} onSelect={setWeekSources} />
-      </section>
-
-      {weekSources && <WeekSourcesModal period={weekSources} onClose={() => setWeekSources(null)} />}
-
-      <section className="card">
-        <div className="section-header-row">
-          <h2>Сравнение объектов по неделям</h2>
+      <nav className="tabbar">
+        {TABS.map((t) => (
           <button
-            type="button"
-            className="toggle-filters-btn"
-            title="Фильтры"
-            onClick={() => setShowComparisonFilters((v) => !v)}
+            key={t.key}
+            className={`tab ${tab === t.key ? "active" : ""}`}
+            onClick={() => setTab(t.key)}
           >
-            {showComparisonFilters ? "−" : "+"}
+            {t.label}
           </button>
-        </div>
-        {showComparisonFilters && (
-          <div className="comparison-filters-row">
-            <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
-            <button type="button" className="analyze-btn" onClick={openAnalysisTab}>
-              Анализ
-            </button>
+        ))}
+      </nav>
+
+      {tab === "data" && <DataTab dashboard={dashboard} onReload={reload} />}
+
+      {tab !== "data" && !hasData && (
+        <section className="card">
+          <p className="empty-hint">
+            Данных ещё нет. Перейдите на вкладку <button className="link-cell" onClick={() => setTab("data")}>«Данные»</button> и загрузите файлы.
+          </p>
+        </section>
+      )}
+
+      {tab === "quality" && hasData && (
+        <section className="card">
+          <h2>Качество ГВС по приборным данным</h2>
+          <GvsQualityAnalysis dataRange={dashboard?.device} />
+        </section>
+      )}
+
+      {tab === "objects" && hasData && (
+        <section className="card">
+          <div className="period-select-row">
+            <h2>Объекты и точки учёта</h2>
           </div>
-        )}
-        {!showComparisonFilters && (
-          <p className="empty-hint">Раскройте фильтры (+) и нажмите «Анализ», чтобы открыть сравнение объектов по неделям в новой вкладке.</p>
-        )}
-      </section>
+          <p className="lead-text">Найдите объект и нажмите на его название — откроется карточка с графиком, отключениями и иерархией.</p>
+          <FiltersBar filters={filters} value={filterValue} onChange={setFilterValue} showOutage />
+          <TuTable rows={tuRows} sortBy={sortBy} order={order} onSort={handleSort} />
+        </section>
+      )}
 
-      <section className="card">
-        <h2>Анализ качества ГВС (приборные данные)</h2>
-        <GvsQualityAnalysis />
-      </section>
-
-      <section className="card">
-        <div className="period-select-row">
-          <h2>Точки учёта <span className="muted-note">— вся база</span></h2>
-        </div>
-        <FiltersBar filters={filters} value={filterValue} onChange={setFilterValue} showOutage />
-        <TuTable rows={tuRows} sortBy={sortBy} order={order} onSort={handleSort} />
-      </section>
+      {tab === "reports" && hasData && (
+        <>
+          <section className="card">
+            <h2>Динамика во времени</h2>
+            <DynamicsChart data={dynamics} />
+          </section>
+          <section className="card">
+            <h2>Сводка по неделям</h2>
+            <p className="lead-text">Нажмите на неделю — покажу разбивку по источникам (ЦТП/котельные).</p>
+            <WeeklySummaryTable data={weeklySummary} onSelect={setWeekSources} />
+          </section>
+          {weekSources && <WeekSourcesModal period={weekSources} onClose={() => setWeekSources(null)} />}
+          <section className="card">
+            <div className="section-header-row">
+              <h2>Сравнение объектов по неделям</h2>
+              <button type="button" className="toggle-filters-btn" title="Фильтры" onClick={() => setShowComparisonFilters((v) => !v)}>
+                {showComparisonFilters ? "−" : "+"}
+              </button>
+            </div>
+            {showComparisonFilters ? (
+              <div className="comparison-filters-row">
+                <FiltersBar filters={filters} value={comparisonFilterValue} onChange={setComparisonFilterValue} />
+                <button type="button" className="analyze-btn" onClick={openAnalysisTab}>Открыть сравнение</button>
+              </div>
+            ) : (
+              <p className="empty-hint">Раскройте фильтры (+) и нажмите «Открыть сравнение», чтобы увидеть таблицу объекты × недели в новой вкладке.</p>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }
