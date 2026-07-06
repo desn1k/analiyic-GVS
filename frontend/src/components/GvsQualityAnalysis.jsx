@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { getGvsQuality, gvsQualityExportUrl } from "../api/client";
 import Hint from "./Hint";
+import ColorLegend from "./ColorLegend";
 
 function fmt(v) {
   return v === null || v === undefined ? "—" : v;
@@ -146,6 +147,7 @@ export default function GvsQualityAnalysis({ dataRange }) {
           <p className="applied-filters">
             Период: {new Date(data.date_from).toLocaleString("ru-RU")} — {new Date(data.date_to).toLocaleString("ru-RU")}.
           </p>
+          <ColorLegend only={["нарушение / недогрев", "норма 60–75 °C", "нет данных / иное"]} />
           <div className="table-wrap" style={{ maxHeight: "60vh" }}>
             <table>
               <thead>

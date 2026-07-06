@@ -7,6 +7,7 @@ import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
 import WeeklySummaryTable from "./components/WeeklySummaryTable";
 import ObjectComparisonTable from "./components/ObjectComparisonTable";
+import Glossary from "./components/Glossary";
 import {
   getPeriods, getDynamics, getFilters, getAllTuRows, getWeeklySummary,
   getObjectComparison, getDashboard,
@@ -41,6 +42,7 @@ export default function App() {
   const [comparisonFilterValue, setComparisonFilterValue] = useState(initialComparisonFilters);
   const [showComparisonFilters, setShowComparisonFilters] = useState(false);
   const [weekSources, setWeekSources] = useState(null);
+  const [showGlossary, setShowGlossary] = useState(false);
 
   const reload = useCallback(async () => {
     const [ps, dash] = await Promise.all([getPeriods(), getDashboard().catch(() => null)]);
@@ -99,7 +101,10 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Аналитика качества ГВС</h1>
+        <button type="button" className="dashboard-btn" onClick={() => setShowGlossary(true)}>📖 Словарь терминов</button>
       </header>
+
+      {showGlossary && <Glossary onClose={() => setShowGlossary(false)} />}
 
       <nav className="tabbar">
         {TABS.map((t) => (

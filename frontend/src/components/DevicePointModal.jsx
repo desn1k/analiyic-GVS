@@ -6,6 +6,7 @@ import {
 import {
   getDeviceSummary, getDeviceHourly, getObjectOutages, getPointHierarchy,
 } from "../api/client";
+import ColorLegend from "./ColorLegend";
 
 const IMPACT_COLOR = {
   "прекращение": "#dc2626",
@@ -298,6 +299,7 @@ export default function DevicePointModal({ row, onClose }) {
                     <Brush dataKey="ts" height={22} travellerWidth={8} stroke="#94a3b8" />
                   </ComposedChart>
                 </ResponsiveContainer>
+                <ColorLegend />
                 <p className="footnote">
                   Горизонтальные зоны по T подачи: красная &lt;40 °C, жёлтая 40–60 °C, зелёная 60–75 °C (норматив).
                   Синие столбцы — объём, м³ (правая ось). Вертикальные цветные зоны — отключения ГВС.
