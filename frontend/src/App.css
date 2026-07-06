@@ -305,6 +305,8 @@ td.violation { color: var(--danger); font-weight: 600; }
 }
 .download-btn:hover:not(:disabled) { background: #eef3fe; }
 .download-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.clickable-row { cursor: pointer; }
+.clickable-row:hover td { background: #eef3fe; }
 .link-cell:disabled { color: var(--text-muted); cursor: default; text-decoration: none; }
 .muted-note { color: var(--text-muted); font-weight: 400; font-size: 13px; }
 

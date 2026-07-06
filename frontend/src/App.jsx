@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import UploadPanel from "./components/UploadPanel";
 import DashboardModal from "./components/DashboardModal";
 import GvsQualityAnalysis from "./components/GvsQualityAnalysis";
+import WeekSourcesModal from "./components/WeekSourcesModal";
 import DynamicsChart from "./components/DynamicsChart";
 import FiltersBar from "./components/FiltersBar";
 import TuTable from "./components/TuTable";
@@ -29,6 +30,7 @@ export default function App() {
   const [comparisonFilterValue, setComparisonFilterValue] = useState(initialComparisonFilters);
   const [showComparisonFilters, setShowComparisonFilters] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [weekSources, setWeekSources] = useState(null);
 
   const reload = useCallback(async () => {
     const ps = await getPeriods();
@@ -104,8 +106,10 @@ export default function App() {
 
       <section className="card">
         <h2>Сводка по неделям</h2>
-        <WeeklySummaryTable data={weeklySummary} />
+        <WeeklySummaryTable data={weeklySummary} onSelect={setWeekSources} />
       </section>
+
+      {weekSources && <WeekSourcesModal period={weekSources} onClose={() => setWeekSources(null)} />}
 
       <section className="card">
         <div className="section-header-row">

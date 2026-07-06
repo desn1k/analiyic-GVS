@@ -751,3 +751,79 @@ def gvs_quality_export(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Разбивка недели по источникам (ЦТП/котельные) и динамика одного источника.
+# ---------------------------------------------------------------------------
+@router.get("/weekly-summary/{period_id}/by-source")
+def weekly_summary_by_source(
+    period_id: int,
+    object_type: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
+    system_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
+    q = _apply_filters(q, object_type, is_dead_end, system_type, None, None)
+    rows = q.all()
+
+    by_source: dict = {}
+    for r in rows:
+        src = r.source_name or "— без источника"
+        s = by_source.setdefault(src, {"volume": 0.0, "viol": 0.0, "tu": 0, "objects": {}})
+        s["volume"] += r.volume_total or 0
+        s["viol"] += _violation_volume(r)
+        s["tu"] += 1
+        o = s["objects"].setdefault(r.object_id, {"vv": 0.0, "a75": 0.0})
+        o["vv"] += _violation_volume(r)
+        o["a75"] += r.volume_above_75 or 0
+
+    result = []
+    for src, s in by_source.items():
+        objs = s["objects"]
+        result.append({
+            "source_name": src,
+            "objects_count": len(objs),
+            "objects_with_violation": sum(1 for o in objs.values() if o["vv"] > 0),
+            "overheat_count": sum(1 for o in objs.values() if o["a75"] > 0),
+            "tu_count": s["tu"],
+            "volume_total": round(s["volume"], 2),
+            "violation_volume": round(s["viol"], 2),
+            "violation_pct": round(_cap_pct(s["viol"] / s["volume"] * 100), 2) if s["volume"] else 0.0,
+        })
+    result.sort(key=lambda x: x["violation_pct"], reverse=True)
+    return {"period_id": period_id, "sources": result}
+
+
+@router.get("/source-dynamics")
+def source_dynamics(
+    source_name: str,
+    object_type: Optional[str] = None,
+    is_dead_end: Optional[str] = None,
+    system_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """% некачества по неделям для одного источника."""
+    periods = db.query(ReportPeriod).order_by(ReportPeriod.period_start).all()
+    points = []
+    for p in periods:
+        q = db.query(TuReportRow).filter(TuReportRow.period_id == p.id)
+        if source_name == "— без источника":
+            q = q.filter((TuReportRow.source_name == None) | (TuReportRow.source_name == ""))  # noqa: E711
+        else:
+            q = q.filter(TuReportRow.source_name == source_name)
+        q = _apply_filters(q, object_type, is_dead_end, system_type, None, None)
+        rows = q.all()
+        if not rows:
+            continue
+        vol = sum(r.volume_total or 0 for r in rows)
+        viol = sum(_violation_volume(r) for r in rows)
+        points.append({
+            "period_id": p.id,
+            "period_start": p.period_start,
+            "period_end": p.period_end,
+            "volume_total": round(vol, 2),
+            "violation_pct": round(_cap_pct(viol / vol * 100), 2) if vol else 0.0,
+        })
+    return {"source_name": source_name, "points": points}

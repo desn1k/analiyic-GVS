@@ -1,6 +1,6 @@
 import { formatPeriod } from "../utils/format";
 
-export default function WeeklySummaryTable({ data }) {
+export default function WeeklySummaryTable({ data, onSelect }) {
   if (!data?.length) {
     return <p className="empty-hint">Нет данных по неделям.</p>;
   }
@@ -21,8 +21,8 @@ export default function WeeklySummaryTable({ data }) {
         </thead>
         <tbody>
           {data.map((p) => (
-            <tr key={p.period_id}>
-              <td>{formatPeriod(p.period_start, p.period_end)}</td>
+            <tr key={p.period_id} className="clickable-row" onClick={() => onSelect?.(p)} title="Разбивка по источникам">
+              <td>{formatPeriod(p.period_start, p.period_end)} ↗</td>
               <td>{p.objects_count}</td>
               <td>{p.objects_with_violation}</td>
               <td>{fmtNum(p.volume_total)}</td>

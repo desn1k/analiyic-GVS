@@ -30,6 +30,12 @@ export const getAllTuRows = (params) =>
 export const getWeeklySummary = (params) =>
   api.get("/api/analytics/weekly-summary", { params }).then((r) => r.data);
 
+export const getWeekSources = (periodId, params) =>
+  api.get(`/api/analytics/weekly-summary/${periodId}/by-source`, { params }).then((r) => r.data);
+
+export const getSourceDynamics = (params) =>
+  api.get("/api/analytics/source-dynamics", { params }).then((r) => r.data);
+
 export const getObjectComparison = (params) =>
   api.get("/api/analytics/object-comparison", { params }).then((r) => r.data);
 
