@@ -13,6 +13,8 @@ function fmtNum(v) {
 
 export default function WeekSourcesModal({ period, onClose }) {
   const [sources, setSources] = useState(null);
+  const [finalSources, setFinalSources] = useState([]);
+  const [finalFilter, setFinalFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);       // источник, раскрытый в объекты
@@ -24,7 +26,7 @@ export default function WeekSourcesModal({ period, onClose }) {
   useEffect(() => {
     setLoading(true);
     getWeekSources(period.period_id)
-      .then((d) => setSources(d.sources || []))
+      .then((d) => { setSources(d.sources || []); setFinalSources(d.final_sources || []); })
       .finally(() => setLoading(false));
   }, [period.period_id]);
 
@@ -43,7 +45,8 @@ export default function WeekSourcesModal({ period, onClose }) {
   };
 
   const filtered = (sources || []).filter(
-    (s) => !search || s.source_name.toLowerCase().includes(search.toLowerCase())
+    (s) => (!search || s.source_name.toLowerCase().includes(search.toLowerCase()))
+      && (!finalFilter || s.final_source === finalFilter)
   );
 
   const topChart = filtered.slice(0, 15).map((s) => ({
@@ -71,13 +74,21 @@ export default function WeekSourcesModal({ period, onClose }) {
 
           {!loading && sources && (
             <>
-              <input
-                type="text"
-                className="source-filter"
-                placeholder="Фильтр по источнику…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+              <div className="source-filters">
+                {finalSources.length > 0 && (
+                  <select value={finalFilter} onChange={(e) => setFinalFilter(e.target.value)}>
+                    <option value="">Конечный источник: все ({finalSources.length})</option>
+                    {finalSources.map((f) => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                )}
+                <input
+                  type="text"
+                  className="source-filter"
+                  placeholder="Поиск по названию источника…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
 
               {filtered.length > 0 && (
                 <ResponsiveContainer width="100%" height={Math.max(160, topChart.length * 22)}>
@@ -155,6 +166,7 @@ function SourceRows({ s, expanded, objects, onToggle, onDynamics, onOpenObject }
       <tr className={expanded ? "sorted" : ""}>
         <td className="wrap-cell" style={{ textAlign: "left" }}>
           <button className="link-cell" onClick={onToggle}>{expanded ? "▾ " : "▸ "}{s.source_name}</button>
+          {s.final_source && <div className="metric-sub">Источник: {s.final_source}</div>}
         </td>
         <td>{s.objects_count}</td>
         <td>{s.objects_with_violation}</td>

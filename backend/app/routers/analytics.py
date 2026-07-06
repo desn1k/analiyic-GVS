@@ -756,6 +756,20 @@ def gvs_quality_export(
 # ---------------------------------------------------------------------------
 # Разбивка недели по источникам (ЦТП/котельные) и динамика одного источника.
 # ---------------------------------------------------------------------------
+def _final_source_map(device_db: Session) -> dict:
+    """Карта tu_id потребителя -> название конечного источника (ТЭЦ/котельная) из иерархии."""
+    import json
+    from app.models import Hierarchy
+    result = {}
+    for h in device_db.query(Hierarchy).all():
+        chain = json.loads(h.chain or "[]")
+        for n in reversed(chain):
+            if n.get("level") == "source":
+                result[h.consumer_tu_id] = n.get("name") or n.get("address")
+                break
+    return result
+
+
 @router.get("/weekly-summary/{period_id}/by-source")
 def weekly_summary_by_source(
     period_id: int,
@@ -763,27 +777,37 @@ def weekly_summary_by_source(
     is_dead_end: Optional[str] = None,
     system_type: Optional[str] = None,
     db: Session = Depends(get_db),
+    device_db: Session = Depends(get_device_db),
 ):
     q = db.query(TuReportRow).filter(TuReportRow.period_id == period_id)
     q = _apply_filters(q, object_type, is_dead_end, system_type, None, None)
     rows = q.all()
+    final_map = _final_source_map(device_db)
 
     by_source: dict = {}
     for r in rows:
         src = r.source_name or "— без источника"
-        s = by_source.setdefault(src, {"volume": 0.0, "viol": 0.0, "tu": 0, "objects": {}})
+        s = by_source.setdefault(src, {"volume": 0.0, "viol": 0.0, "tu": 0, "objects": {}, "finals": {}})
         s["volume"] += r.volume_total or 0
         s["viol"] += _violation_volume(r)
         s["tu"] += 1
         o = s["objects"].setdefault(r.object_id, {"vv": 0.0, "a75": 0.0})
         o["vv"] += _violation_volume(r)
         o["a75"] += r.volume_above_75 or 0
+        fin = final_map.get(r.tu_id)
+        if fin:
+            s["finals"][fin] = s["finals"].get(fin, 0) + 1
 
     result = []
+    finals_set = set()
     for src, s in by_source.items():
         objs = s["objects"]
+        final_source = max(s["finals"], key=s["finals"].get) if s["finals"] else None
+        if final_source:
+            finals_set.add(final_source)
         result.append({
             "source_name": src,
+            "final_source": final_source,
             "objects_count": len(objs),
             "objects_with_violation": sum(1 for o in objs.values() if o["vv"] > 0),
             "overheat_count": sum(1 for o in objs.values() if o["a75"] > 0),
@@ -793,7 +817,7 @@ def weekly_summary_by_source(
             "violation_pct": round(_cap_pct(s["viol"] / s["volume"] * 100), 2) if s["volume"] else 0.0,
         })
     result.sort(key=lambda x: x["violation_pct"], reverse=True)
-    return {"period_id": period_id, "sources": result}
+    return {"period_id": period_id, "sources": result, "final_sources": sorted(finals_set)}
 
 
 @router.get("/source-dynamics")

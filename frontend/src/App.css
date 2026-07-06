@@ -386,9 +386,14 @@ td.violation { color: var(--danger); font-weight: 600; }
 .glossary-item dd { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
 
 /* Разбивка по источникам — фильтр и раскрытые объекты */
+.source-filters { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.source-filters select {
+  padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; background: var(--surface); max-width: 100%;
+}
 .source-filter {
-  width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  font-size: 13px; margin-bottom: 12px; background: var(--surface);
+  flex: 1 1 220px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; background: var(--surface);
 }
 .source-objects { display: flex; flex-direction: column; gap: 4px; }
 .source-object-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 6px; }
