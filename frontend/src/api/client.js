@@ -39,6 +39,9 @@ export const getSourceDynamics = (params) =>
 export const getWeekSourceObjects = (periodId, params) =>
   api.get(`/api/analytics/weekly-summary/${periodId}/source-objects`, { params }).then((r) => r.data);
 
+export const getWeekOutageStats = (periodId) =>
+  api.get(`/api/analytics/weekly-summary/${periodId}/outage-stats`).then((r) => r.data);
+
 export const getObjectComparison = (params) =>
   api.get("/api/analytics/object-comparison", { params }).then((r) => r.data);
 

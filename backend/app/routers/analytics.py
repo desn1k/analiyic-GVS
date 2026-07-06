@@ -891,3 +891,39 @@ def week_source_objects(
     } for o in by_obj.values()]
     objects.sort(key=lambda x: x["violation_pct"], reverse=True)
     return {"source_name": source_name, "objects": objects}
+
+
+@router.get("/weekly-summary/{period_id}/outage-stats")
+def week_outage_stats(period_id: int, db: Session = Depends(get_db), device_db: Session = Depends(get_device_db)):
+    """Сколько отключений ГВС (прекращений/ограничений) действовало в течение недели."""
+    period = db.query(ReportPeriod).get(period_id)
+    if period is None:
+        raise HTTPException(404, "Период не найден")
+    from datetime import datetime as dt, time as dtime
+    start = dt.combine(period.period_start, dtime.min)
+    end = dt.combine(period.period_end, dtime.max)
+
+    rows = (
+        device_db.query(Outage.impact, Outage.address_norm)
+        .filter(Outage.service_gvs == True)  # noqa: E712
+        .filter(Outage.start_fact != None)  # noqa: E711
+        .filter(Outage.start_fact <= end)
+        .filter((Outage.end_fact == None) | (Outage.end_fact >= start))  # noqa: E711
+        .all()
+    )
+    counts: dict = {}
+    addrs: dict = {}
+    for impact, addr in rows:
+        key = impact or "иное"
+        counts[key] = counts.get(key, 0) + 1
+        addrs.setdefault(key, set()).add(addr)
+
+    breakdown = [
+        {"impact": k, "count": v, "objects_count": len(addrs.get(k, set()))}
+        for k, v in sorted(counts.items(), key=lambda x: -x[1])
+    ]
+    return {
+        "period_id": period_id,
+        "total": sum(counts.values()),
+        "breakdown": breakdown,
+    }
